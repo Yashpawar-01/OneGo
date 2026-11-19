@@ -1,0 +1,32 @@
+{
+  "name": "onego",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Unified AI coding hub: multiple providers, shared memory, intelligent routing",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "concurrently -n server,web -c blue,green \"npm:dev:server\" \"npm:dev:web\"",
+    "dev:server": "npm run dev --workspace @onego/server",
+    "dev:web": "npm run dev --workspace @onego/web",
+    "build": "npm run typecheck && npm run build --workspace @onego/server && npm run build --workspace @onego/web",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "db:generate": "npm run db:generate --workspace @onego/server",
+    "db:migrate": "npm run db:migrate --workspace @onego/server",
+    "db:studio": "npm run db:studio --workspace @onego/server",
+    "docker:up": "docker compose up -d"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "concurrently": "^9.1.0",
+    "tsup": "^8.3.5",
+    "typescript": "^5.7.2",
+    "vitest": "^3.0.0"
+  }
+}

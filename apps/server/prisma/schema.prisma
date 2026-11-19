@@ -1,0 +1,515 @@
+// PostgreSQL schema for the OneGo platform.
+// Provider credentials are stored only as AES-256-GCM ciphertext
+// (credentialCiphertext); plaintext never reaches the database.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum ProviderKind {
+  OPENAI
+  ANTHROPIC
+  GITHUB
+  QODER
+}
+
+enum AuthMethod {
+  API_KEY
+  OAUTH
+  CLI_PAT
+}
+
+enum AccountStatus {
+  CONNECTED
+  ERROR
+  EXPIRED
+  DISABLED
+}
+
+enum UsageSource {
+  PROVIDER_API
+  RATE_LIMIT_HEADERS
+  ESTIMATED
+  UNAVAILABLE
+}
+
+enum RoutingMode {
+  MANUAL
+  AUTOMATIC
+  INTELLIGENT
+}
+
+enum MessageRole {
+  SYSTEM
+  USER
+  ASSISTANT
+  TOOL
+}
+
+enum ConversationStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum SwitchReason {
+  QUOTA_EXHAUSTED
+  RATE_LIMITED
+  AUTH_ERROR
+  PROVIDER_ERROR
+  MANUAL
+  ROUTING
+}
+
+enum ToolExecutionStatus {
+  PENDING
+  RUNNING
+  SUCCEEDED
+  FAILED
+  DENIED
+}
+
+enum FileChangeType {
+  CREATE
+  MODIFY
+  DELETE
+  RENAME
+}
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  BLOCKED
+  COMPLETED
+  CANCELLED
+}
+
+enum ContextTrigger {
+  USER_MESSAGE
+  PROVIDER_SWITCH
+  TOOL_EXECUTION
+  FILE_CHANGE
+  TASK_UPDATE
+  MANUAL
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  name         String?
+  role         UserRole @default(MEMBER)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  providerAccounts ProviderAccount[]
+  projects         Project[]
+  conversations    Conversation[]
+  routingRules     RoutingRule[]
+  modelPreferences ModelPreference[]
+  auditLogs        AuditLog[]
+
+  @@map("users")
+}
+
+model Provider {
+  id           String       @id @default(cuid())
+  key          String       @unique
+  name         String
+  kind         ProviderKind
+  authMethods  AuthMethod[] @map("auth_methods")
+  docsUrl      String?      @map("docs_url")
+  capabilities Json
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+
+  accounts ProviderAccount[]
+  models   ProviderModel[]
+
+  @@map("providers")
+}
+
+model ProviderAccount {
+  id                  String        @id @default(cuid())
+  userId              String        @map("user_id")
+  providerId          String        @map("provider_id")
+  label               String        @default("default")
+  authMethod          AuthMethod    @map("auth_method")
+  status              AccountStatus @default(CONNECTED)
+  statusMessage       String?       @map("status_message")
+  // Ciphertext only. Envelope format is versioned by credentialKeyVersion.
+  credentialCiphertext String       @map("credential_ciphertext")
+  credentialKeyVersion Int          @default(1) @map("credential_key_version")
+  priority            Int           @default(100)
+  enabled             Boolean       @default(true)
+  metadata            Json?
+  lastValidatedAt     DateTime?     @map("last_validated_at")
+  lastUsedAt          DateTime?     @map("last_used_at")
+  createdAt           DateTime      @default(now()) @map("created_at")
+  updatedAt           DateTime      @updatedAt @map("updated_at")
+
+  user             User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider         Provider        @relation(fields: [providerId], references: [id], onDelete: Restrict)
+  messages         Message[]
+  usageRecords     ProviderUsage[]
+  usageEvents      UsageEvent[]
+  switchesFrom     ProviderSwitch[] @relation("ProviderSwitchFrom")
+  switchesTo       ProviderSwitch[] @relation("ProviderSwitchTo")
+  toolExecutions   ToolExecution[]
+
+  @@unique([userId, providerId, label])
+  @@index([userId, enabled, priority])
+  @@map("provider_accounts")
+}
+
+model ProviderModel {
+  id                 String   @id @default(cuid())
+  providerId         String   @map("provider_id")
+  modelId            String   @map("model_id")
+  displayName        String   @map("display_name")
+  contextWindow      Int      @map("context_window")
+  maxOutputTokens    Int?     @map("max_output_tokens")
+  supportsStreaming  Boolean  @default(true) @map("supports_streaming")
+  supportsTools      Boolean  @default(false) @map("supports_tools")
+  supportsVision     Boolean  @default(false) @map("supports_vision")
+  inputCostPerMTok   Decimal? @db.Decimal(12, 4) @map("input_cost_per_mtok")
+  outputCostPerMTok  Decimal? @db.Decimal(12, 4) @map("output_cost_per_mtok")
+  available          Boolean  @default(true)
+  metadata           Json?
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  provider    Provider          @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  preferences ModelPreference[]
+
+  @@unique([providerId, modelId])
+  @@map("provider_models")
+}
+
+model ProviderUsage {
+  id                String      @id @default(cuid())
+  providerAccountId String      @map("provider_account_id")
+  periodStart       DateTime    @map("period_start")
+  periodEnd         DateTime?   @map("period_end")
+  requestCount      Int         @default(0) @map("request_count")
+  successCount      Int         @default(0) @map("success_count")
+  errorCount        Int         @default(0) @map("error_count")
+  inputTokens       Int?        @map("input_tokens")
+  outputTokens      Int?        @map("output_tokens")
+  estimatedCostUsd  Decimal?    @db.Decimal(14, 6) @map("estimated_cost_usd")
+  quotaRemaining    Float?      @map("quota_remaining")
+  quotaLimit        Float?      @map("quota_limit")
+  resetAt           DateTime?   @map("reset_at")
+  rateLimitState    Json?       @map("rate_limit_state")
+  source            UsageSource @default(UNAVAILABLE)
+  lastRequestAt     DateTime?   @map("last_request_at")
+  createdAt         DateTime    @default(now()) @map("created_at")
+  updatedAt         DateTime    @updatedAt @map("updated_at")
+
+  account ProviderAccount @relation(fields: [providerAccountId], references: [id], onDelete: Cascade)
+
+  @@unique([providerAccountId, periodStart])
+  @@index([providerAccountId, lastRequestAt])
+  @@map("provider_usage")
+}
+
+model UsageEvent {
+  id                String      @id @default(cuid())
+  providerAccountId String      @map("provider_account_id")
+  conversationId    String?     @map("conversation_id")
+  modelId           String?     @map("model_id")
+  status            String
+  inputTokens       Int?        @map("input_tokens")
+  outputTokens      Int?        @map("output_tokens")
+  estimatedCostUsd  Decimal?    @db.Decimal(14, 6) @map("estimated_cost_usd")
+  latencyMs         Int?        @map("latency_ms")
+  source            UsageSource @default(UNAVAILABLE)
+  occurredAt        DateTime    @default(now()) @map("occurred_at")
+
+  account      ProviderAccount @relation(fields: [providerAccountId], references: [id], onDelete: Cascade)
+  conversation Conversation?   @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+
+  @@index([providerAccountId, occurredAt])
+  @@index([conversationId, occurredAt])
+  @@map("usage_events")
+}
+
+model Project {
+  id            String   @id @default(cuid())
+  userId        String   @map("user_id")
+  name          String
+  description   String?
+  rootPath      String?  @map("root_path")
+  gitRemoteUrl  String?  @map("git_remote_url")
+  defaultBranch String?  @default("main") @map("default_branch")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  repositories   Repository[]
+  conversations  Conversation[]
+  memories       ProjectMemory[]
+  tasks          TaskState[]
+  fileChanges    FileChangeLog[]
+
+  @@index([userId])
+  @@map("projects")
+}
+
+model Repository {
+  id            String    @id @default(cuid())
+  projectId     String    @map("project_id")
+  name          String
+  path          String
+  remoteUrl     String?   @map("remote_url")
+  branch        String?
+  indexStatus   String    @default("pending") @map("index_status")
+  lastIndexedAt DateTime? @map("last_indexed_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, path])
+  @@map("repositories")
+}
+
+model Conversation {
+  id              String             @id @default(cuid())
+  userId          String             @map("user_id")
+  projectId       String?            @map("project_id")
+  title           String             @default("New conversation")
+  status          ConversationStatus @default(ACTIVE)
+  routingMode     RoutingMode        @default(MANUAL) @map("routing_mode")
+  activeAccountId String?            @map("active_account_id")
+  // Optimistic concurrency guard for cross-provider writes.
+  version         Int                @default(1)
+  lastMessageAt   DateTime?          @map("last_message_at")
+  createdAt       DateTime           @default(now()) @map("created_at")
+  updatedAt       DateTime           @updatedAt @map("updated_at")
+
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project          Project?         @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  messages         Message[]
+  events           ConversationEvent[]
+  contextSnapshots ContextSnapshot[]
+  switches         ProviderSwitch[]
+  toolExecutions   ToolExecution[]
+  tasks            TaskState[]
+  fileChanges      FileChangeLog[]
+  usageEvents      UsageEvent[]
+
+  @@index([userId, updatedAt])
+  @@index([projectId])
+  @@map("conversations")
+}
+
+model Message {
+  id                String    @id @default(cuid())
+  conversationId    String    @map("conversation_id")
+  sequence          Int
+  role              MessageRole
+  content           String    @db.Text
+  providerAccountId String?   @map("provider_account_id")
+  modelId           String?   @map("model_id")
+  inputTokens       Int?      @map("input_tokens")
+  outputTokens      Int?      @map("output_tokens")
+  metadata          Json?
+  createdAt         DateTime  @default(now()) @map("created_at")
+
+  conversation    Conversation    @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  providerAccount ProviderAccount? @relation(fields: [providerAccountId], references: [id], onDelete: SetNull)
+  toolExecutions  ToolExecution[]
+
+  @@unique([conversationId, sequence])
+  @@index([conversationId, createdAt])
+  @@map("messages")
+}
+
+// Append-only log used to reconstruct conversation state (event-based architecture).
+model ConversationEvent {
+  id             String   @id @default(cuid())
+  conversationId String   @map("conversation_id")
+  type           String
+  payload        Json
+  actor          String?
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@map("conversation_events")
+}
+
+model ProjectMemory {
+  id        String   @id @default(cuid())
+  projectId String   @map("project_id")
+  key       String
+  value     String   @db.Text
+  category  String   @default("general")
+  source    String   @default("manual")
+  pinned    Boolean  @default(false)
+  version   Int      @default(1)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, key])
+  @@map("project_memories")
+}
+
+model ContextSnapshot {
+  id             String         @id @default(cuid())
+  conversationId String         @map("conversation_id")
+  version        Int
+  trigger        ContextTrigger
+  tokenCount     Int?           @map("token_count")
+  content        Json
+  createdAt      DateTime       @default(now()) @map("created_at")
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, version])
+  @@map("context_snapshots")
+}
+
+model ProviderSwitch {
+  id             String       @id @default(cuid())
+  conversationId String       @map("conversation_id")
+  fromAccountId  String?      @map("from_account_id")
+  toAccountId    String?      @map("to_account_id")
+  reason         SwitchReason
+  detail         String?
+  createdAt      DateTime     @default(now()) @map("created_at")
+
+  conversation Conversation     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  fromAccount  ProviderAccount? @relation("ProviderSwitchFrom", fields: [fromAccountId], references: [id], onDelete: SetNull)
+  toAccount    ProviderAccount? @relation("ProviderSwitchTo", fields: [toAccountId], references: [id], onDelete: SetNull)
+
+  @@index([conversationId, createdAt])
+  @@map("provider_switches")
+}
+
+model ToolExecution {
+  id                String              @id @default(cuid())
+  conversationId    String              @map("conversation_id")
+  messageId         String?             @map("message_id")
+  providerAccountId String?             @map("provider_account_id")
+  toolName          String              @map("tool_name")
+  input             Json
+  output            Json?
+  status            ToolExecutionStatus @default(PENDING)
+  // Prevents duplicate side effects when a provider switch happens mid-flight.
+  idempotencyKey    String?             @unique @map("idempotency_key")
+  error             String?
+  startedAt         DateTime            @default(now()) @map("started_at")
+  finishedAt        DateTime?           @map("finished_at")
+
+  conversation    Conversation    @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  message         Message?        @relation(fields: [messageId], references: [id], onDelete: SetNull)
+  providerAccount ProviderAccount? @relation(fields: [providerAccountId], references: [id], onDelete: SetNull)
+  fileChanges     FileChangeLog[]
+
+  @@index([conversationId, startedAt])
+  @@map("tool_executions")
+}
+
+model FileChangeLog {
+  id              String         @id @default(cuid())
+  projectId       String         @map("project_id")
+  conversationId  String?        @map("conversation_id")
+  toolExecutionId String?        @map("tool_execution_id")
+  path            String
+  changeType      FileChangeType @map("change_type")
+  beforeHash      String?        @map("before_hash")
+  afterHash       String?        @map("after_hash")
+  diff            String?        @db.Text
+  createdAt       DateTime       @default(now()) @map("created_at")
+
+  project       Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  conversation  Conversation?  @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  toolExecution ToolExecution? @relation(fields: [toolExecutionId], references: [id], onDelete: SetNull)
+
+  @@index([projectId, createdAt])
+  @@index([conversationId])
+  @@map("file_change_logs")
+}
+
+model TaskState {
+  id             String     @id @default(cuid())
+  projectId      String     @map("project_id")
+  conversationId String?    @map("conversation_id")
+  title          String
+  detail         String?
+  status         TaskStatus @default(PENDING)
+  createdAt      DateTime   @default(now()) @map("created_at")
+  updatedAt      DateTime   @updatedAt @map("updated_at")
+
+  project      Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  conversation Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+
+  @@index([projectId, status])
+  @@map("task_states")
+}
+
+model RoutingRule {
+  id                  String      @id @default(cuid())
+  userId              String      @map("user_id")
+  name                String
+  enabled             Boolean     @default(true)
+  mode                RoutingMode @default(AUTOMATIC)
+  priority            Int         @default(100)
+  conditions          Json
+  targetProviderKind  ProviderKind? @map("target_provider_kind")
+  targetModelId       String?     @map("target_model_id")
+  createdAt           DateTime    @default(now()) @map("created_at")
+  updatedAt           DateTime    @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, enabled, priority])
+  @@map("routing_rules")
+}
+
+model ModelPreference {
+  id              String   @id @default(cuid())
+  userId          String   @map("user_id")
+  providerModelId String   @map("provider_model_id")
+  taskType        String?  @map("task_type")
+  weight          Int      @default(100)
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  providerModel ProviderModel @relation(fields: [providerModelId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, providerModelId, taskType])
+  @@map("model_preferences")
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?  @map("user_id")
+  action     String
+  entityType String?  @map("entity_type")
+  entityId   String?  @map("entity_id")
+  metadata   Json?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([action, createdAt])
+  @@map("audit_logs")
+}
