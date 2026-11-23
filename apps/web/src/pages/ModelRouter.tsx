@@ -1,5 +1,16 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import {
+  BrainCircuit,
+  MousePointerClick,
+  Power,
+  RefreshCw,
+  Sparkles,
+  Trash2,
+  Waypoints,
+  Zap,
+  type LucideIcon,
+} from "lucide-react";
+import {
   api,
   ApiError,
   type ProviderModel,
@@ -16,13 +27,41 @@ import {
   Field,
   Input,
   PageHeader,
+  ProviderGlyph,
   Select,
   Spinner,
   Textarea,
+  cn,
   formatNumber,
 } from "../components/ui.js";
 
 type CatalogModel = ProviderModel & { providerKind: string; providerName: string };
+
+const MODE_COPY: Array<{
+  mode: string;
+  icon: LucideIcon;
+  blurb: string;
+  accent: string;
+}> = [
+  {
+    mode: "manual",
+    icon: MousePointerClick,
+    blurb: "You pick provider and model per conversation.",
+    accent: "border-brand/25 bg-brand/10 text-[#b9c3ff]",
+  },
+  {
+    mode: "automatic",
+    icon: Zap,
+    blurb: "Highest-priority healthy account wins, with fallback.",
+    accent: "border-cyan-400/25 bg-cyan-400/10 text-cyan-300",
+  },
+  {
+    mode: "intelligent",
+    icon: BrainCircuit,
+    blurb: "Classifies the task locally, then ranks synced models.",
+    accent: "border-[#b18cff]/25 bg-[#b18cff]/10 text-[#d8c6ff]",
+  },
+];
 
 export function ModelRouter() {
   const [rules, setRules] = useState<RoutingRule[]>([]);
@@ -147,10 +186,17 @@ export function ModelRouter() {
   return (
     <div className="space-y-6">
       <PageHeader
+        eyebrow={
+          <>
+            <Waypoints className="size-3.5" />
+            Adaptive dispatch
+          </>
+        }
         title="Model Router"
         description="Choose how each request picks a model: manual, automatic by priority, or intelligent classification over the synced catalog. Rules are stored configuration; the chat engine currently routes per conversation mode."
         actions={
-          <Button variant="secondary" onClick={load}>
+          <Button variant="secondary" size="sm" onClick={load} disabled={loading}>
+            <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
             Refresh
           </Button>
         }
@@ -158,55 +204,126 @@ export function ModelRouter() {
 
       {error ? <ErrorBanner message={error} onRetry={load} /> : null}
 
+      <section className="grid gap-3 md:grid-cols-3">
+        {MODE_COPY.map((entry) => {
+          const Icon = entry.icon;
+          return (
+            <Card key={entry.mode} className="group relative overflow-hidden">
+              <div className="pointer-events-none absolute -top-12 -right-10 size-32 rounded-full bg-gradient-to-b from-white/[0.05] to-transparent blur-2xl" />
+              <div className="relative flex items-start gap-3">
+                <span
+                  className={cn(
+                    "grid size-9 shrink-0 place-items-center rounded-lg border",
+                    entry.accent,
+                  )}
+                >
+                  <Icon className="size-4" />
+                </span>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-display text-sm font-semibold text-ink capitalize">
+                      {entry.mode}
+                    </span>
+                    <Badge tone="neutral">mode</Badge>
+                  </div>
+                  <p className="mt-1 text-xs leading-relaxed text-dim">{entry.blurb}</p>
+                </div>
+              </div>
+            </Card>
+          );
+        })}
+      </section>
+
       <div className="grid gap-4 xl:grid-cols-2">
         <Card>
-          <h2 className="mb-3 text-sm font-semibold text-ink">Routing rules</h2>
+          <div className="mb-4 flex items-start justify-between gap-2">
+            <div>
+              <h2 className="font-display text-sm font-semibold text-ink">Routing rules</h2>
+              <p className="mt-0.5 text-[11px] text-dim">
+                Stored intent · {rules.length} {rules.length === 1 ? "rule" : "rules"}
+              </p>
+            </div>
+            <Badge tone="info" dot>
+              persisted
+            </Badge>
+          </div>
+
           {loading && rules.length === 0 ? <Spinner label="Loading rules…" /> : null}
           {!loading && rules.length === 0 ? (
             <EmptyState
+              icon={<Waypoints className="size-5" />}
               title="No routing rules yet"
               description="Rules capture recurring routing intent. They are stored and editable; automatic application during chat is a later phase."
             />
           ) : (
-            <ul className="divide-y divide-edge/70">
+            <ul className="space-y-2">
               {rules.map((rule) => (
-                <li key={rule.id} className="py-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div>
+                <li
+                  key={rule.id}
+                  className="rounded-xl border border-edge/80 bg-canvas/35 p-3 transition-colors hover:border-edge-strong/80"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="text-sm text-ink">{rule.name}</span>
-                        <Badge tone={rule.enabled ? "good" : "neutral"}>
+                        <span className="text-sm font-medium text-ink">{rule.name}</span>
+                        <Badge tone={rule.enabled ? "good" : "neutral"} dot>
                           {rule.enabled ? "enabled" : "disabled"}
                         </Badge>
-                        <Badge tone="info">{rule.mode}</Badge>
+                        <Badge tone="violet">{rule.mode}</Badge>
                       </div>
-                      <div className="mt-0.5 text-xs text-dim">
-                        Priority {rule.priority}
-                        {rule.targetProviderKind ? ` · ${rule.targetProviderKind}` : ""}
-                        {rule.targetModelId ? ` · ${rule.targetModelId}` : ""}
+                      <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-dim">
+                        <span className="rounded border border-edge bg-panel px-1.5 py-0.5 font-mono text-[10px] text-dim">
+                          p{rule.priority}
+                        </span>
+                        {rule.targetProviderKind ? (
+                          <span className="inline-flex items-center gap-1">
+                            <ProviderGlyph kind={rule.targetProviderKind} size="sm" />
+                            {rule.targetProviderKind}
+                          </span>
+                        ) : (
+                          <span>any provider</span>
+                        )}
+                        {rule.targetModelId ? (
+                          <span className="font-mono text-[10px] text-dim">
+                            {rule.targetModelId}
+                          </span>
+                        ) : null}
                       </div>
                     </div>
-                    <div className="flex flex-wrap items-center gap-1.5">
+                    <div className="flex items-center gap-1">
                       <Select
                         aria-label="Rule mode"
                         value={rule.mode}
                         onChange={(event) => void changeRuleMode(rule, event.target.value)}
-                        className="w-auto"
+                        className="h-7 w-auto py-0 text-[11px]"
                       >
                         <option value="manual">manual</option>
                         <option value="automatic">automatic</option>
                         <option value="intelligent">intelligent</option>
                       </Select>
-                      <Button size="sm" variant="ghost" onClick={() => void toggleRule(rule)}>
-                        {rule.enabled ? "Disable" : "Enable"}
+                      <Button
+                        size="xs"
+                        variant="ghost"
+                        onClick={() => void toggleRule(rule)}
+                        title={rule.enabled ? "Disable rule" : "Enable rule"}
+                        aria-label={rule.enabled ? "Disable rule" : "Enable rule"}
+                      >
+                        <Power className="size-3.5" />
                       </Button>
-                      <Button size="sm" variant="danger" onClick={() => void removeRule(rule)}>
-                        Delete
+                      <Button
+                        size="xs"
+                        variant="ghost"
+                        onClick={() => void removeRule(rule)}
+                        title="Delete rule"
+                        aria-label="Delete rule"
+                        className="text-rose-300/80 hover:bg-rose-500/10 hover:text-rose-200"
+                      >
+                        <Trash2 className="size-3.5" />
                       </Button>
                     </div>
                   </div>
                   {Object.keys(rule.conditions).length > 0 ? (
-                    <pre className="mt-1 overflow-x-auto rounded bg-canvas/60 px-2 py-1 text-[10px] text-dim">
+                    <pre className="mt-2 overflow-x-auto rounded-lg border border-edge/60 bg-canvas/60 px-2 py-1.5 font-mono text-[10px] text-dim">
                       {JSON.stringify(rule.conditions)}
                     </pre>
                   ) : null}
@@ -216,6 +333,12 @@ export function ModelRouter() {
           )}
 
           <form onSubmit={createRule} className="mt-4 space-y-3 border-t border-edge pt-4">
+            <div className="flex items-center gap-2">
+              <Sparkles className="size-3.5 text-brand" />
+              <h3 className="text-xs font-semibold tracking-[0.08em] text-dim uppercase">
+                New rule
+              </h3>
+            </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label="Rule name">
                 <Input
@@ -275,12 +398,16 @@ export function ModelRouter() {
           </form>
         </Card>
 
-        <Card>
-          <h2 className="mb-3 text-sm font-semibold text-ink">Intelligent routing preview</h2>
-          <p className="mb-3 text-xs text-dim">
-            Paste a representative prompt. OneGo classifies the task locally (no provider
-            request) and ranks synced models by capability, context size, and list price.
-          </p>
+        <Card className="flex flex-col">
+          <div className="mb-3">
+            <h2 className="font-display text-sm font-semibold text-ink">
+              Intelligent routing preview
+            </h2>
+            <p className="mt-1 text-xs leading-relaxed text-dim">
+              Paste a representative prompt. OneGo classifies the task locally (no provider
+              request) and ranks synced models by capability, context size, and list price.
+            </p>
+          </div>
           <form onSubmit={runPreview} className="space-y-2">
             <Textarea
               value={prompt}
@@ -288,23 +415,40 @@ export function ModelRouter() {
               placeholder="e.g. Refactor this React component and explain the tradeoffs…"
               className="min-h-24"
             />
-            <Button type="submit" variant="primary" size="sm" disabled={previewing || !prompt.trim()}>
+            <Button
+              type="submit"
+              variant="primary"
+              size="sm"
+              disabled={previewing || !prompt.trim()}
+            >
+              <BrainCircuit className="size-3.5" />
               {previewing ? "Classifying…" : "Preview routing"}
             </Button>
           </form>
 
           {preview ? (
-            <div className="mt-4 space-y-3">
-              <div className="flex flex-wrap items-center gap-2 text-xs text-dim">
-                <Badge tone="info">{preview.classification.type}</Badge>
-                <span>
-                  confidence {Math.round(preview.classification.confidence * 100)}%
-                </span>
-                {preview.classification.signals?.map((signal) => (
-                  <span key={signal} className="rounded bg-white/[0.03] px-1.5 py-0.5">
-                    {signal}
+            <div className="mt-4 flex-1 space-y-3">
+              <div className="rounded-xl border border-brand/20 bg-brand/[0.06] p-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge tone="info" dot>
+                    {preview.classification.type}
+                  </Badge>
+                  <span className="text-[11px] text-dim">
+                    confidence {Math.round(preview.classification.confidence * 100)}%
                   </span>
-                ))}
+                </div>
+                {preview.classification.signals?.length ? (
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {preview.classification.signals.map((signal) => (
+                      <span
+                        key={signal}
+                        className="rounded-full border border-edge bg-canvas/60 px-2 py-0.5 text-[10px] text-dim"
+                      >
+                        {signal}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
               </div>
               {preview.recommendations.length === 0 ? (
                 <p className="text-sm text-dim">
@@ -312,54 +456,96 @@ export function ModelRouter() {
                 </p>
               ) : (
                 <ol className="space-y-2">
-                  {preview.recommendations.map((recommendation) => (
+                  {preview.recommendations.map((recommendation, index) => (
                     <li
                       key={`${recommendation.providerKind}:${recommendation.modelId}`}
-                      className="rounded-lg border border-edge bg-canvas/40 px-3 py-2"
+                      className="flex items-start gap-3 rounded-xl border border-edge/80 bg-canvas/35 px-3 py-2.5"
                     >
-                      <div className="flex flex-wrap items-center justify-between gap-1">
-                        <span className="text-sm text-ink">
-                          {recommendation.displayName}
-                          <span className="ml-1.5 text-xs text-dim">
-                            {recommendation.providerName}
+                      <span
+                        className={cn(
+                          "grid size-6 shrink-0 place-items-center rounded-md border font-mono text-[10px] font-semibold",
+                          index === 0
+                            ? "border-brand/35 bg-brand/15 text-[#b9c3ff]"
+                            : "border-edge bg-panel text-dim",
+                        )}
+                      >
+                        {index + 1}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center justify-between gap-1">
+                          <span className="flex min-w-0 items-center gap-1.5 text-sm text-ink">
+                            <ProviderGlyph
+                              kind={recommendation.providerKind ?? "unknown"}
+                              size="sm"
+                            />
+                            <span className="truncate">{recommendation.displayName}</span>
+                            <span className="text-[11px] text-dim">
+                              {recommendation.providerName}
+                            </span>
                           </span>
-                        </span>
-                        <span className="text-xs text-brand">
-                          score {formatNumber(recommendation.score)}
-                        </span>
-                      </div>
-                      <div className="mt-0.5 text-[11px] text-dim">
-                        {recommendation.reasons.join(" · ")}
+                          <span className="font-mono text-[11px] text-brand">
+                            {formatNumber(recommendation.score)}
+                          </span>
+                        </div>
+                        <div className="mt-1 text-[11px] leading-relaxed text-dim">
+                          {recommendation.reasons.join(" · ")}
+                        </div>
                       </div>
                     </li>
                   ))}
                 </ol>
               )}
             </div>
-          ) : null}
+          ) : (
+            <div className="mt-4 flex-1 rounded-xl border border-dashed border-edge/70 px-4 py-8 text-center">
+              <p className="text-xs text-dim">
+                Recommendations appear here after a local classification pass.
+              </p>
+            </div>
+          )}
         </Card>
       </div>
 
       <Card>
-        <h2 className="mb-3 text-sm font-semibold text-ink">Synced model catalog</h2>
+        <div className="mb-4 flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <h2 className="font-display text-sm font-semibold text-ink">Synced model catalog</h2>
+            <p className="mt-0.5 text-[11px] text-dim">
+              {catalog.length} models across {providersInCatalog.length}{" "}
+              {providersInCatalog.length === 1 ? "provider" : "providers"}
+            </p>
+          </div>
+          <Badge tone="neutral">from provider sync</Badge>
+        </div>
         {catalog.length === 0 ? (
-          <p className="text-sm text-dim">
-            No models synced yet. Connect a provider and press “Sync models”.
-          </p>
+          <EmptyState
+            icon={<Sparkles className="size-5" />}
+            title="No models synced yet"
+            description="Connect a provider on the Providers page and press “Sync models” to populate the catalog."
+          />
         ) : (
           <div className="grid gap-3 md:grid-cols-2">
             {providersInCatalog.map((provider) => (
-              <div key={provider.kind} className="rounded-lg border border-edge p-3">
-                <div className="mb-2 flex items-center gap-2">
-                  <span className="text-sm text-ink">{provider.name}</span>
+              <div
+                key={provider.kind}
+                className="rounded-xl border border-edge/80 bg-canvas/30 p-3"
+              >
+                <div className="mb-2.5 flex items-center gap-2">
+                  <ProviderGlyph kind={provider.kind} size="sm" />
+                  <span className="text-sm font-medium text-ink">{provider.name}</span>
                   <Badge tone="neutral">{provider.kind}</Badge>
-                  <span className="text-[11px] text-dim">{provider.models.length} models</span>
+                  <span className="ml-auto text-[11px] text-dim">
+                    {provider.models.length} models
+                  </span>
                 </div>
-                <ul className="space-y-1 text-xs text-dim">
+                <ul className="space-y-1">
                   {provider.models.map((model) => (
-                    <li key={model.id} className="flex flex-wrap items-center justify-between gap-1">
+                    <li
+                      key={model.id}
+                      className="flex flex-wrap items-center justify-between gap-1 rounded-lg px-2 py-1 text-xs hover:bg-white/[0.03]"
+                    >
                       <span className="text-ink">{model.displayName}</span>
-                      <span>
+                      <span className="font-mono text-[10px] text-dim">
                         {model.contextWindow
                           ? `${formatNumber(model.contextWindow)} ctx`
                           : "ctx n/a"}

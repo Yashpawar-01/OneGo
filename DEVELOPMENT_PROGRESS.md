@@ -149,6 +149,34 @@ phase, together with test results and any deviations.
 | Runtime smoke test | ✅ `/api/health` 200; Vite proxy; SSE error path |
 | UI smoke test | ✅ Register → Overview → Providers (add/delete account with honest validation failure) → Workspace (create conversation, SSE error) → Usage → Router preview → Projects (project/memory/task CRUD, delete) → Conversations → Settings; no console errors |
 
+## UI overhaul — completed 2026-11-23
+
+- Rebuilt the design foundation on Tailwind v4 `@theme` tokens: dark canvas,
+  layered panels, aurora/grid backdrops, glass surfaces, custom motion
+  (fade-up, scale-in, shimmer, pulse-soft), Inter / Space Grotesk / JetBrains
+  Mono typography, and a shared icon set (`lucide-react`).
+- Expanded `components/ui.tsx` with card padding/glow variants, gradient
+  buttons, segmented controls, modals, sparklines, provider glyphs, skeletons,
+  and consistent formatters; preserved every existing data contract.
+- New command palette (⌘K / Ctrl-K) for navigation, new-conversation, and sign
+  out; premium auth screen; upgraded shell with provider-status pill, mobile
+  drawer, user card, and page transitions.
+- Redesigned all eight routes: Overview hero + provider network grid, Workspace
+  three-pane cockpit (threads, chat, run inspector), Providers account cards,
+  Router rule builder + preview, Analytics KPI/chart/quota layout, Projects
+  context workspace, Conversations ledger, and Settings security posture.
+- Honesty preserved: every number still comes from recorded events or official
+  quota channels; empty and not-reported states are explicit.
+
+### Verification (run 2026-11-23)
+
+| Check | Result |
+| --- | --- |
+| `npm run typecheck` | ✅ Passed — shared, core, server, web |
+| `npm test` | ✅ 41 tests passed (33 core, 8 server) |
+| `npm run build` | ✅ Server bundle 112 KB; web JS 439 KB (125 KB gzip), CSS 73 KB |
+| UI smoke test | ✅ Register → Overview → Workspace → Providers → Router → Usage → Conversations → Projects → Settings; ⌘K palette opens; no console errors |
+
 ## Decisions log
 
 - **2026-11-19** — Express over NestJS: fewer moving parts; module isolation is
