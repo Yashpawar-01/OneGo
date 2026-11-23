@@ -379,6 +379,7 @@ export type ChatStreamEvent =
       conversationId: string;
       routingMode: string;
       classification?: { type: string; confidence: number; signals?: string[] };
+      routingRule?: { id: string; name: string };
       context: {
         includedMessages: number;
         omittedMessages: number;
@@ -683,6 +684,7 @@ export const api = {
       name: string;
       mode: string;
       priority?: number;
+      conditions?: Record<string, unknown>;
       targetProviderKind?: string | null;
       targetModelId?: string | null;
     }) =>

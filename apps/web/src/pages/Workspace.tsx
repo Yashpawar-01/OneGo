@@ -64,6 +64,7 @@ type StreamState = {
     maxTokens: number;
   } | null;
   classification: { type: string; confidence: number } | null;
+  routingRule: { id: string; name: string } | null;
   usage: { inputTokens?: number; outputTokens?: number; totalTokens?: number } | null;
   error: string | null;
 };
@@ -79,6 +80,7 @@ const EMPTY_STREAM: StreamState = {
   fallbacks: [],
   context: null,
   classification: null,
+  routingRule: null,
   usage: null,
   error: null,
 };
@@ -383,6 +385,7 @@ export function Workspace() {
           classification: event.classification
             ? { type: event.classification.type, confidence: event.classification.confidence }
             : null,
+          routingRule: event.routingRule ?? null,
         }));
         break;
       case "attempt_started":
@@ -875,6 +878,9 @@ export function Workspace() {
           <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto">
             <InspectorSection title="Routing" icon={<Waypoints className="size-3" />}>
               <InfoRow label="Mode" value={routingMode} />
+              {stream.routingRule ? (
+                <InfoRow label="Rule" value={stream.routingRule.name} />
+              ) : null}
               <InfoRow label="Target" value={activeLabel} />
               <InfoRow label="Model" value={stream.modelId ?? selectedModelId ?? "provider default"} />
               <InfoRow label="Project" value={detail?.conversation.projectName ?? "none"} />

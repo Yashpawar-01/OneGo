@@ -40,6 +40,7 @@ export type ChatStreamEvent =
       conversationId: string;
       routingMode: string;
       classification?: ResolvedTargets["classification"];
+      routingRule?: ResolvedTargets["routingRule"];
       context: ContextMeta;
     }
   | {
@@ -261,6 +262,7 @@ export async function* runChatTurn(
     conversationId: conversation.id,
     routingMode: resolved.routingMode,
     classification: resolved.classification,
+    routingRule: resolved.routingRule,
     context: contextMeta,
   };
 
@@ -470,6 +472,7 @@ export async function* runChatTurn(
         finishReason: "stop",
         attempts: doneData.attempts,
         fallbackUsed,
+        ...(resolved.routingRule ? { routingRule: resolved.routingRule.name } : {}),
       }),
     });
 
@@ -548,6 +551,7 @@ export async function* runChatTurn(
           usage: finalUsage,
           attempts: doneData.attempts,
           fallbackUsed,
+          routingRule: resolved.routingRule?.name,
         }),
         actor: "assistant",
       },

@@ -127,8 +127,8 @@ phase, together with test results and any deviations.
   from official channels where available.
 - Task classifier and model ranking exposed through `POST /api/usage/preview`;
   the Router UI shows classification, signals, and ranked recommendations.
-- Routing rules CRUD with modes/priorities/targets. **Deferred:** applying rules
-  automatically inside the chat engine (conversation mode governs today).
+- Routing rules CRUD with modes/priorities/targets, evaluated before every
+  chat turn in the orchestrator.
 
 ## Phase 11 — security, testing, optimization — completed 2026-11-23
 
@@ -177,6 +177,37 @@ phase, together with test results and any deviations.
 | `npm run build` | ✅ Server bundle 112 KB; web JS 439 KB (125 KB gzip), CSS 73 KB |
 | UI smoke test | ✅ Register → Overview → Workspace → Providers → Router → Usage → Conversations → Projects → Settings; ⌘K palette opens; no console errors |
 
+## Routing rules — completed 2026-11-23
+
+- Rule matcher lives in `packages/core/src/routing/rules.ts` with 11 unit
+  tests. Conditions: `taskTypes` (local classifier output), `promptIncludes`,
+  `promptMatches` (regex), `projectId`, `hasProject`, and `minMessages` /
+  `maxMessages` / `minPromptLength` / `maxPromptLength` bounds. Empty conditions
+  match any turn; unknown condition keys never match (fail closed).
+- `resolveTargets` evaluates enabled rules ordered by ascending priority unless
+  the request carries an explicit account or model pick, which always wins. A
+  matching rule scopes the candidate accounts by `targetProviderKind` /
+  `targetModelId`, sets the effective routing mode, and is reported back in the
+  SSE `meta` event (`routingRule: { id, name }`).
+- Stale rules (target provider disconnected or model no longer synced) are
+  skipped so a stale rule can never block chat; normal mode routing continues.
+- The applied rule is recorded in the assistant message metadata and the
+  `assistant_message` conversation event; the Workspace inspector shows it in
+  the Routing section, and the Router UI renders rule conditions as chips and
+  offers a task-type condition picker.
+- Integration test (`app.integration.test.ts`) proves a `taskTypes:["debugging"]`
+  rule routes a debug prompt to OpenAI and avoids the configured Anthropic
+  quota fallback.
+
+### Verification (run 2026-11-23)
+
+| Check | Result |
+| --- | --- |
+| `npm run typecheck` | ✅ Passed — shared, core, server, web |
+| `npm test` | ✅ 53 tests passed (44 core, 9 server) |
+| `npm run build` | ✅ Server bundle 112 KB; web JS 441 KB (126 KB gzip), CSS 73 KB |
+| UI smoke test | ✅ Signed in → `/router` renders the task-type condition picker and priority explanations; created a `task: debugging` rule through the form, chip rendered, deleted via API; no new console errors |
+
 ## Decisions log
 
 - **2026-11-19** — Express over NestJS: fewer moving parts; module isolation is
@@ -192,8 +223,11 @@ phase, together with test results and any deviations.
   build step); the server bundle and Vite inline them.
 - **2026-11-23** — Cooldowns are kept in an in-memory map with explicit
   timestamps; Redis remains optional and is not required for single-node usage.
-- **2026-11-23** — Routing rules are persisted configuration; execution follows
-  the conversation's routing mode until rule evaluation is implemented.
+- **2026-11-23** — Routing rules are evaluated inside `resolveTargets` before
+  every turn: ascending priority, explicit per-request picks win, unknown
+  condition keys fail closed, and stale targets fall through to normal routing
+  instead of erroring. Rules may only narrow the candidate set, so a rule can
+  never fabricate a provider connection that does not exist.
 
 ## Known limitations
 
@@ -203,15 +237,13 @@ phase, together with test results and any deviations.
   none.
 - Repository indexing, tool execution, terminal, Monaco editor, and desktop/IDE
   clients are not part of this build.
-- Routing-rule auto-application and Redis-backed distributed cooldowns are
-  deferred.
+- Redis-backed distributed cooldowns are deferred (cooldowns are per-process).
 - `npm audit` currently reports high-severity advisories in transitive
   dev/build tooling; no runtime dependency has been identified as affected.
 
 ## Next up
 
-1. Apply routing rules in the orchestrator (conditions → target mode/model).
-2. Repository indexing + retrieval (pgvector) and file-change capture with
+1. Repository indexing + retrieval (pgvector) and file-change capture with
    approval-gated edits.
-3. Terminal and tool execution with allowlists and approval workflow.
-4. Desktop/VS Code clients over the same HTTP/SSE contract.
+2. Terminal and tool execution with allowlists and approval workflow.
+3. Desktop/VS Code clients over the same HTTP/SSE contract.

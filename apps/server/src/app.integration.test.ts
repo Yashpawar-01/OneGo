@@ -232,4 +232,46 @@ describeWithDb("server API acceptance flow", () => {
     expect(detail.body.messages).toHaveLength(4);
     expect(detail.body.messages.filter((m: { role: string }) => m.role === "assistant")).toHaveLength(2);
   });
+
+  it("steers a turn with the lowest-priority matching routing rule", async (ctx) => {
+    if (skipWithoutDb(ctx)) return;
+    const createdRule = await request(app)
+      .post("/api/routing/rules")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        name: "Debug on Codex",
+        mode: "automatic",
+        priority: 5,
+        conditions: { taskTypes: ["debugging"] },
+        targetProviderKind: "openai",
+      });
+    expect(createdRule.status).toBe(201);
+
+    const created = await request(app)
+      .post("/api/conversations")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ title: "Rule-routed conversation", routingMode: "automatic" });
+    expect(created.status).toBe(201);
+    const ruleConversationId = created.body.conversation.id as string;
+
+    const response = await request(app)
+      .post(`/api/conversations/${ruleConversationId}/messages`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ content: "Please debug the failing login test." })
+      .buffer(true)
+      .parse(sseParser);
+
+    const events = parseSse(response.body as unknown as string);
+    const meta = events.find((event) => event.event === "meta");
+    expect((meta?.data as { routingRule?: { name: string } }).routingRule?.name).toBe(
+      "Debug on Codex",
+    );
+
+    const attempts = events.filter((event) => event.event === "attempt_started");
+    expect((attempts[0]?.data as { providerKind: string }).providerKind).toBe("openai");
+    expect(events.some((event) => event.event === "fallback")).toBe(false);
+
+    const done = events.find((event) => event.event === "done");
+    expect((done?.data as { providerKind: string }).providerKind).toBe("openai");
+  });
 });

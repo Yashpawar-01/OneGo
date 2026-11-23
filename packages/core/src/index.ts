@@ -4,6 +4,7 @@ export * from "./errors/provider-error.js";
 export * from "./orchestration/runner.js";
 export * from "./context/context-builder.js";
 export * from "./routing/classifier.js";
+export * from "./routing/rules.js";
 export * from "./adapters/openai.js";
 export * from "./adapters/anthropic.js";
 export * from "./adapters/simulated.js";

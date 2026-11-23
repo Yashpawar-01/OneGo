@@ -3,6 +3,7 @@ import type { Conversation, ProviderModel } from "@prisma/client";
 import {
   classifyTask,
   rankModelsForTask,
+  selectRoutingRule,
   type AttemptTarget,
 } from "@onego/core";
 import type {
@@ -32,6 +33,8 @@ export type ResolvedTargets = {
   targets: AttemptTarget[];
   routingMode: RoutingMode;
   classification?: TaskClassification;
+  /** Rule that steered this turn, when one matched and produced usable targets. */
+  routingRule?: { id: string; name: string };
   /** Token budget for the context package. */
   maxTokens: number;
 };
@@ -153,13 +156,65 @@ export async function resolveTargets(
   }
 
   const routingMode = normalizeMode(selection.mode ?? conversation.routingMode);
-  let pairs: Pair[] = [];
   let classification: TaskClassification | undefined;
+  let appliedRule: ResolvedTargets["routingRule"];
 
-  if (routingMode === "intelligent" && selection.prompt) {
-    classification = classifyTask(selection.prompt);
+  // Explicit per-request account/model picks always win over stored rules.
+  const explicitSelection = Boolean(selection.accountId || selection.modelId);
+  let effectiveMode = routingMode;
+  let candidateAccounts = eligible;
+  let requestedModelId = selection.modelId ?? null;
+
+  if (!explicitSelection) {
+    const storedRules = await ctx.prisma.routingRule.findMany({
+      where: { userId, enabled: true },
+      orderBy: [{ priority: "asc" }, { createdAt: "asc" }],
+    });
+    if (storedRules.length > 0) {
+      classification = classifyTask(selection.prompt ?? "");
+      const messageCount = await ctx.prisma.message.count({
+        where: { conversationId: conversation.id },
+      });
+      const matched = selectRoutingRule(storedRules, {
+        prompt: selection.prompt ?? "",
+        taskType: classification.type,
+        projectId: conversation.projectId,
+        messageCount,
+      });
+      if (matched) {
+        const targetKind = matched.targetProviderKind
+          ? toSharedKind(matched.targetProviderKind)
+          : null;
+        let scoped = targetKind
+          ? eligible.filter(
+              (account) => toSharedKind(account.provider.kind) === targetKind,
+            )
+          : eligible;
+        if (matched.targetModelId) {
+          scoped = scoped.filter((account) =>
+            account.provider.models.some(
+              (model) => model.modelId === matched.targetModelId,
+            ),
+          );
+        }
+        // A stale rule (provider disconnected or model removed) is skipped so
+        // the conversation keeps working with normal routing.
+        if (scoped.length > 0) {
+          effectiveMode = normalizeMode(matched.mode);
+          candidateAccounts = scoped;
+          requestedModelId = matched.targetModelId ?? requestedModelId;
+          appliedRule = { id: matched.id, name: matched.name };
+        }
+      }
+    }
+  }
+
+  let pairs: Pair[] = [];
+
+  if (effectiveMode === "intelligent" && selection.prompt) {
+    if (!classification) classification = classifyTask(selection.prompt);
     const candidates: Array<{ pair: Pair; info: ProviderModelInfo }> = [];
-    for (const account of eligible) {
+    for (const account of candidateAccounts) {
       for (const model of account.provider.models) {
         candidates.push({
           pair: { account, model },
@@ -176,8 +231,8 @@ export async function resolveTargets(
       .map((scored) => byInfo.get(scored.model))
       .filter((pair): pair is Pair => Boolean(pair));
   } else {
-    let ordered = [...eligible];
-    if (routingMode === "manual") {
+    let ordered = [...candidateAccounts];
+    if (effectiveMode === "manual") {
       const primaryId = selection.accountId ?? conversation.activeAccountId;
       if (primaryId) {
         ordered.sort((a, b) => {
@@ -189,7 +244,7 @@ export async function resolveTargets(
     }
     pairs = ordered
       .map((account) => {
-        const model = chooseModel(account, selection.modelId);
+        const model = chooseModel(account, requestedModelId);
         return model ? { account, model } : undefined;
       })
       .filter((pair): pair is Pair => Boolean(pair));
@@ -215,5 +270,11 @@ export async function resolveTargets(
     ? Math.min(48_000, Math.max(4_000, Math.floor(contextWindow * 0.6)))
     : 16_000;
 
-  return { targets, routingMode, classification, maxTokens };
+  return {
+    targets,
+    routingMode: effectiveMode,
+    classification,
+    routingRule: appliedRule,
+    maxTokens,
+  };
 }

@@ -63,6 +63,65 @@ const MODE_COPY: Array<{
   },
 ];
 
+const TASK_TYPES = [
+  "architecture",
+  "debugging",
+  "code_generation",
+  "code_review",
+  "large_repo_analysis",
+  "documentation",
+] as const;
+
+const CONDITION_KEYS = new Set([
+  "taskTypes",
+  "promptIncludes",
+  "promptMatches",
+  "projectId",
+  "hasProject",
+  "minMessages",
+  "maxMessages",
+  "minPromptLength",
+  "maxPromptLength",
+]);
+
+function summarizeConditions(conditions: Record<string, unknown>): string[] {
+  const chips: string[] = [];
+  const taskTypes = conditions.taskTypes;
+  if (typeof taskTypes === "string") chips.push(`task: ${taskTypes}`);
+  else if (Array.isArray(taskTypes)) chips.push(`task: ${taskTypes.join(" / ")}`);
+
+  const includes = conditions.promptIncludes;
+  if (typeof includes === "string") chips.push(`includes “${includes}”`);
+  else if (Array.isArray(includes)) {
+    chips.push(`includes ${includes.map((value) => `“${String(value)}”`).join(" / ")}`);
+  }
+
+  if (typeof conditions.promptMatches === "string") {
+    chips.push(`matches /${conditions.promptMatches}/i`);
+  }
+  if (typeof conditions.projectId === "string") chips.push("project pinned");
+  if (typeof conditions.hasProject === "boolean") {
+    chips.push(conditions.hasProject ? "requires project" : "no project");
+  }
+  if (typeof conditions.minMessages === "number") {
+    chips.push(`≥ ${conditions.minMessages} messages`);
+  }
+  if (typeof conditions.maxMessages === "number") {
+    chips.push(`≤ ${conditions.maxMessages} messages`);
+  }
+  if (typeof conditions.minPromptLength === "number") {
+    chips.push(`prompt ≥ ${conditions.minPromptLength} chars`);
+  }
+  if (typeof conditions.maxPromptLength === "number") {
+    chips.push(`prompt ≤ ${conditions.maxPromptLength} chars`);
+  }
+
+  for (const key of Object.keys(conditions)) {
+    if (!CONDITION_KEYS.has(key)) chips.push(`unsupported: ${key}`);
+  }
+  return chips;
+}
+
 export function ModelRouter() {
   const [rules, setRules] = useState<RoutingRule[]>([]);
   const [catalog, setCatalog] = useState<CatalogModel[]>([]);
@@ -75,6 +134,7 @@ export function ModelRouter() {
   const [priority, setPriority] = useState("100");
   const [providerKind, setProviderKind] = useState("");
   const [modelId, setModelId] = useState("");
+  const [taskType, setTaskType] = useState("");
 
   const [prompt, setPrompt] = useState("");
   const [preview, setPreview] = useState<RoutingPreview | null>(null);
@@ -126,11 +186,13 @@ export function ModelRouter() {
         name: name.trim(),
         mode,
         priority: Number(priority) || 100,
+        conditions: taskType ? { taskTypes: [taskType] } : {},
         targetProviderKind: providerKind || null,
         targetModelId: modelId || null,
       });
       setName("");
       setModelId("");
+      setTaskType("");
       notifyDataChanged();
       load();
     } catch (err) {
@@ -193,7 +255,7 @@ export function ModelRouter() {
           </>
         }
         title="Model Router"
-        description="Choose how each request picks a model: manual, automatic by priority, or intelligent classification over the synced catalog. Rules are stored configuration; the chat engine currently routes per conversation mode."
+        description="Choose how each request picks a model: manual, automatic by priority, or intelligent classification over the synced catalog. Enabled rules are evaluated before every turn; the lowest-priority match scopes the provider and model, and an explicit account or model pick always wins."
         actions={
           <Button variant="secondary" size="sm" onClick={load} disabled={loading}>
             <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
@@ -240,7 +302,8 @@ export function ModelRouter() {
             <div>
               <h2 className="font-display text-sm font-semibold text-ink">Routing rules</h2>
               <p className="mt-0.5 text-[11px] text-dim">
-                Stored intent · {rules.length} {rules.length === 1 ? "rule" : "rules"}
+                Stored intent · {rules.length} {rules.length === 1 ? "rule" : "rules"} · lowest
+                priority wins
               </p>
             </div>
             <Badge tone="info" dot>
@@ -253,7 +316,7 @@ export function ModelRouter() {
             <EmptyState
               icon={<Waypoints className="size-5" />}
               title="No routing rules yet"
-              description="Rules capture recurring routing intent. They are stored and editable; automatic application during chat is a later phase."
+              description="Rules match task type, prompt text, project, or conversation size. The lowest-priority match steers the next turn; turns with an explicit account or model pick bypass rules."
             />
           ) : (
             <ul className="space-y-2">
@@ -323,10 +386,21 @@ export function ModelRouter() {
                     </div>
                   </div>
                   {Object.keys(rule.conditions).length > 0 ? (
-                    <pre className="mt-2 overflow-x-auto rounded-lg border border-edge/60 bg-canvas/60 px-2 py-1.5 font-mono text-[10px] text-dim">
-                      {JSON.stringify(rule.conditions)}
-                    </pre>
-                  ) : null}
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {summarizeConditions(rule.conditions).map((chip, index) => (
+                        <span
+                          key={`${chip}-${index}`}
+                          className="rounded-full border border-edge bg-canvas/60 px-2 py-0.5 font-mono text-[10px] text-dim"
+                        >
+                          {chip}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="mt-2">
+                      <Badge tone="neutral">matches any turn</Badge>
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>
@@ -391,6 +465,25 @@ export function ModelRouter() {
                   ))}
                 </Select>
               </Field>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field
+                label="Condition · task type"
+                hint="Optional. Matched by the local classifier; empty means any task."
+              >
+                <Select value={taskType} onChange={(event) => setTaskType(event.target.value)}>
+                  <option value="">Any task</option>
+                  {TASK_TYPES.map((type) => (
+                    <option key={type} value={type}>
+                      {type.replaceAll("_", " ")}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <p className="self-center rounded-lg border border-edge/60 bg-canvas/40 px-3 py-2 text-[10px] leading-relaxed text-faint">
+                Priorities are ascending. If the targeted provider or model is unavailable, the
+                rule is skipped and normal routing continues, so a stale rule never blocks chat.
+              </p>
             </div>
             <Button type="submit" variant="primary" size="sm" disabled={busy || !name.trim()}>
               {busy ? "Creating…" : "Create rule"}
