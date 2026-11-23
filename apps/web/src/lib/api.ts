@@ -328,17 +328,29 @@ export type Task = {
   updatedAt: string;
 };
 
+export type ProjectRepository = {
+  id: string;
+  name: string;
+  path: string;
+  remoteUrl: string | null;
+  branch: string | null;
+  indexStatus: string;
+  lastIndexedAt: string | null;
+  chunkCount: number;
+};
+
+export type RepositoryHit = {
+  id: string;
+  path: string;
+  startLine: number;
+  endLine: number;
+  content: string;
+  rank: number;
+};
+
 export type ProjectDetail = {
   project: Project;
-  repositories: Array<{
-    id: string;
-    name: string;
-    path: string;
-    remoteUrl: string | null;
-    branch: string | null;
-    indexStatus: string;
-    lastIndexedAt: string | null;
-  }>;
+  repositories: ProjectRepository[];
   tasks: Task[];
   memories: Memory[];
 };
@@ -385,6 +397,7 @@ export type ChatStreamEvent =
         omittedMessages: number;
         tokenEstimate: number;
         maxTokens: number;
+        repositoryHits: number;
       };
     }
   | {
@@ -420,6 +433,7 @@ export type ChatStreamEvent =
         omittedMessages: number;
         tokenEstimate: number;
         maxTokens: number;
+        repositoryHits: number;
       };
     }
   | {
@@ -663,6 +677,32 @@ export const api = {
       }),
     deleteTask: (taskId: string) =>
       apiFetch<void>(`/api/tasks/${taskId}`, { method: "DELETE" }),
+    addRepository: (
+      projectId: string,
+      body: { name: string; path: string; remoteUrl?: string; branch?: string },
+    ) =>
+      apiFetch<{ repository: ProjectRepository }>(
+        `/api/projects/${projectId}/repositories`,
+        { method: "POST", body: JSON.stringify(body) },
+      ),
+    deleteRepository: (repositoryId: string) =>
+      apiFetch<void>(`/api/repositories/${repositoryId}`, { method: "DELETE" }),
+    indexRepository: (repositoryId: string) =>
+      apiFetch<{
+        repository: ProjectRepository | null;
+        stats: {
+          files: number;
+          indexedFiles: number;
+          chunks: number;
+          skipped: number;
+          truncated: boolean;
+          bytes: number;
+        };
+      }>(`/api/repositories/${repositoryId}/index`, { method: "POST" }),
+    searchRepository: (projectId: string, query: string, limit = 8) =>
+      apiFetch<{ hits: RepositoryHit[] }>(
+        `/api/projects/${projectId}/search?query=${encodeURIComponent(query)}&limit=${limit}`,
+      ),
   },
   usage: {
     summary: (days = 7) =>

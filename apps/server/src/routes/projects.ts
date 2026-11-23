@@ -1,11 +1,13 @@
+import path from "node:path";
 import { Router } from "express";
 import { z } from "zod";
-import type { ProjectMemory, TaskState } from "@prisma/client";
+import type { ProjectMemory, Repository, TaskState } from "@prisma/client";
 import { notFound } from "../lib/http-error.js";
 import { asyncHandler } from "../lib/async-handler.js";
 import { parseBody } from "../lib/validate.js";
 import type { AuthedRequest } from "../middleware/auth.js";
 import type { ServiceContext } from "../services/context.js";
+import { indexRepository, searchRepositoryChunks } from "../services/repository-index.js";
 
 const projectSchema = z.object({
   name: z.string().trim().min(1).max(160),
@@ -60,6 +62,23 @@ const taskUpdateSchema = z
   })
   .strict();
 
+const repositorySchema = z.object({
+  name: z.string().trim().min(1).max(160),
+  path: z
+    .string()
+    .trim()
+    .min(1)
+    .max(1000)
+    .refine((value) => path.isAbsolute(value), "Repository path must be absolute"),
+  remoteUrl: z.string().trim().max(1000).nullable().optional(),
+  branch: z.string().trim().max(200).nullable().optional(),
+});
+
+const repositorySearchSchema = z.object({
+  query: z.string().trim().min(1).max(500),
+  limit: z.coerce.number().int().min(1).max(20).optional(),
+});
+
 type ProjectWithCounts = {
   id: string;
   name: string;
@@ -101,6 +120,21 @@ function memoryDto(memory: ProjectMemory) {
     version: memory.version,
     createdAt: memory.createdAt.toISOString(),
     updatedAt: memory.updatedAt.toISOString(),
+  };
+}
+
+type RepositoryWithCount = Repository & { _count?: { chunks: number } };
+
+function repositoryDto(repository: RepositoryWithCount) {
+  return {
+    id: repository.id,
+    name: repository.name,
+    path: repository.path,
+    remoteUrl: repository.remoteUrl,
+    branch: repository.branch,
+    indexStatus: repository.indexStatus,
+    lastIndexedAt: repository.lastIndexedAt?.toISOString() ?? null,
+    chunkCount: repository._count?.chunks ?? 0,
   };
 }
 
@@ -161,7 +195,7 @@ export function createProjectsRouter(ctx: ServiceContext): Router {
         where: { id: req.params.projectId, userId },
         include: {
           _count: { select: { conversations: true, memories: true, tasks: true } },
-          repositories: true,
+          repositories: { include: { _count: { select: { chunks: true } } } },
           tasks: { orderBy: { updatedAt: "desc" }, take: 50 },
           memories: { orderBy: [{ pinned: "desc" }, { updatedAt: "desc" }], take: 100 },
         },
@@ -169,15 +203,7 @@ export function createProjectsRouter(ctx: ServiceContext): Router {
       if (!project) throw notFound("Project");
       res.json({
         project: projectDto(project),
-        repositories: project.repositories.map((repository) => ({
-          id: repository.id,
-          name: repository.name,
-          path: repository.path,
-          remoteUrl: repository.remoteUrl,
-          branch: repository.branch,
-          indexStatus: repository.indexStatus,
-          lastIndexedAt: repository.lastIndexedAt?.toISOString() ?? null,
-        })),
+        repositories: project.repositories.map(repositoryDto),
         tasks: project.tasks.map(taskDto),
         memories: project.memories.map(memoryDto),
       });
@@ -214,6 +240,79 @@ export function createProjectsRouter(ctx: ServiceContext): Router {
       });
       if (result.count === 0) throw notFound("Project");
       res.status(204).end();
+    }),
+  );
+
+  router.post(
+    "/projects/:projectId/repositories",
+    asyncHandler(async (req, res) => {
+      const { userId } = req as AuthedRequest;
+      const body = parseBody(repositorySchema, req.body);
+      const project = await ctx.prisma.project.findFirst({
+        where: { id: req.params.projectId, userId },
+        select: { id: true },
+      });
+      if (!project) throw notFound("Project");
+      const repository = await ctx.prisma.repository.upsert({
+        where: { projectId_path: { projectId: project.id, path: body.path } },
+        create: {
+          projectId: project.id,
+          name: body.name,
+          path: body.path,
+          remoteUrl: body.remoteUrl ?? null,
+          branch: body.branch ?? null,
+        },
+        update: {
+          name: body.name,
+          remoteUrl: body.remoteUrl ?? null,
+          branch: body.branch ?? null,
+          indexStatus: "pending",
+        },
+        include: { _count: { select: { chunks: true } } },
+      });
+      res.status(201).json({ repository: repositoryDto(repository) });
+    }),
+  );
+
+  router.delete(
+    "/repositories/:repositoryId",
+    asyncHandler(async (req, res) => {
+      const { userId } = req as AuthedRequest;
+      const result = await ctx.prisma.repository.deleteMany({
+        where: { id: req.params.repositoryId, project: { userId } },
+      });
+      if (result.count === 0) throw notFound("Repository");
+      res.status(204).end();
+    }),
+  );
+
+  router.post(
+    "/repositories/:repositoryId/index",
+    asyncHandler(async (req, res) => {
+      const { userId } = req as AuthedRequest;
+      const repositoryId = req.params.repositoryId;
+      if (!repositoryId) throw notFound("Repository");
+      const stats = await indexRepository(ctx, repositoryId, userId);
+      const repository = await ctx.prisma.repository.findUnique({
+        where: { id: repositoryId },
+        include: { _count: { select: { chunks: true } } },
+      });
+      res.json({ repository: repository ? repositoryDto(repository) : null, stats });
+    }),
+  );
+
+  router.get(
+    "/projects/:projectId/search",
+    asyncHandler(async (req, res) => {
+      const { userId } = req as AuthedRequest;
+      const { query, limit } = parseBody(repositorySearchSchema, req.query);
+      const project = await ctx.prisma.project.findFirst({
+        where: { id: req.params.projectId, userId },
+        select: { id: true },
+      });
+      if (!project) throw notFound("Project");
+      const hits = await searchRepositoryChunks(ctx, project.id, query, limit ?? 8);
+      res.json({ hits });
     }),
   );
 

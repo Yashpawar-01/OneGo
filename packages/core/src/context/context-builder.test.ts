@@ -52,4 +52,26 @@ describe("buildContextPackage", () => {
     });
     expect(pkg.tokenEstimate).toBeGreaterThan(0);
   });
+
+  it("renders indexed repository snippets with their locations", () => {
+    const pkg = buildContextPackage({
+      messages: [{ role: "user", content: "where is the fallback runner?" }],
+      repositoryContext: [
+        {
+          path: "packages/core/src/fallback.ts",
+          startLine: 12,
+          endLine: 30,
+          content: "export class FallbackRunner {}",
+        },
+        { path: "README.md", content: "Fallback behaviour notes" },
+      ],
+      maxTokens: 4_000,
+    });
+
+    expect(pkg.system).toContain("## Repository context");
+    expect(pkg.system).toContain("### packages/core/src/fallback.ts:12-30");
+    expect(pkg.system).toContain("export class FallbackRunner {}");
+    expect(pkg.system).toContain("### README.md");
+    expect(pkg.tokenEstimate).toBeGreaterThan(estimateTokens(pkg.messages[0]?.content as string));
+  });
 });

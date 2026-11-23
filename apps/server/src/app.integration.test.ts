@@ -1,3 +1,6 @@
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { PrismaClient } from "@prisma/client";
@@ -75,6 +78,7 @@ describeWithDb("server API acceptance flow", () => {
   const email = `acceptance-${Date.now()}@onego.test`;
   let token = "";
   let conversationId = "";
+  const tempDirs: string[] = [];
 
   beforeAll(async () => {
     try {
@@ -89,6 +93,7 @@ describeWithDb("server API acceptance flow", () => {
   afterAll(async () => {
     await prisma.user.deleteMany({ where: { email } });
     await prisma.$disconnect();
+    await Promise.all(tempDirs.map((dir) => rm(dir, { recursive: true, force: true })));
   });
 
   it("registers the first user and issues a token", async (ctx) => {
@@ -273,5 +278,88 @@ describeWithDb("server API acceptance flow", () => {
 
     const done = events.find((event) => event.event === "done");
     expect((done?.data as { providerKind: string }).providerKind).toBe("openai");
+  });
+
+  it("indexes a linked repository and retrieves matching code into the context", async (ctx) => {
+    if (skipWithoutDb(ctx)) return;
+
+    const root = await mkdtemp(path.join(tmpdir(), "onego-index-"));
+    tempDirs.push(root);
+    await mkdir(path.join(root, "src"), { recursive: true });
+    await mkdir(path.join(root, "node_modules", "dep"), { recursive: true });
+    await writeFile(
+      path.join(root, "src", "fallback.ts"),
+      "export class FallbackRunner {\n  switchProvider() { return 'quota_exhausted'; }\n}\n",
+    );
+    await writeFile(
+      path.join(root, "src", "theme.ts"),
+      "export const palette = ['red', 'blue'];\n",
+    );
+    await writeFile(
+      path.join(root, "node_modules", "dep", "index.js"),
+      "module.exports = 'quota_exhausted';\n",
+    );
+    await writeFile(path.join(root, ".env"), "SECRET_API_KEY=should-never-be-indexed\n");
+    await writeFile(path.join(root, "logo.bin"), Buffer.from([0, 1, 2, 3]));
+
+    const projectResponse = await request(app)
+      .post("/api/projects")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ name: "Indexed project", rootPath: root });
+    expect(projectResponse.status).toBe(201);
+    const projectId = projectResponse.body.project.id as string;
+
+    const relativePath = await request(app)
+      .post(`/api/projects/${projectId}/repositories`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ name: "fixture", path: "relative/not/allowed" });
+    expect(relativePath.status).toBe(400);
+
+    const repository = await request(app)
+      .post(`/api/projects/${projectId}/repositories`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ name: "fixture", path: root });
+    expect(repository.status).toBe(201);
+    const repositoryId = repository.body.repository.id as string;
+    expect(repository.body.repository.indexStatus).toBe("pending");
+
+    const indexed = await request(app)
+      .post(`/api/repositories/${repositoryId}/index`)
+      .set("Authorization", `Bearer ${token}`);
+    expect(indexed.status).toBe(200);
+    expect(indexed.body.repository.indexStatus).toBe("indexed");
+    expect(indexed.body.repository.chunkCount).toBe(2);
+    expect(indexed.body.stats.indexedFiles).toBe(2);
+    expect(indexed.body.stats.skipped).toBeGreaterThanOrEqual(3);
+
+    const search = await request(app)
+      .get(`/api/projects/${projectId}/search?query=quota_exhausted`)
+      .set("Authorization", `Bearer ${token}`);
+    expect(search.status).toBe(200);
+    expect(search.body.hits).toHaveLength(1);
+    expect(search.body.hits[0].path).toBe("src/fallback.ts");
+    expect(search.body.hits[0].content).toContain("FallbackRunner");
+    expect(JSON.stringify(search.body)).not.toContain("should-never-be-indexed");
+
+    const created = await request(app)
+      .post("/api/conversations")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ title: "Indexed conversation", routingMode: "manual", projectId });
+    expect(created.status).toBe(201);
+    const indexedConversationId = created.body.conversation.id as string;
+
+    const response = await request(app)
+      .post(`/api/conversations/${indexedConversationId}/messages`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ content: "Where is quota_exhausted handled in the fallback runner?" })
+      .buffer(true)
+      .parse(sseParser);
+
+    const events = parseSse(response.body as unknown as string);
+    const meta = events.find((event) => event.event === "meta");
+    expect(
+      (meta?.data as { context?: { repositoryHits?: number } }).context?.repositoryHits,
+    ).toBe(1);
+    expect(events.some((event) => event.event === "done")).toBe(true);
   });
 });

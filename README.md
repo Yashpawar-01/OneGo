@@ -94,7 +94,8 @@ docs/           Architecture and provider integration research
 | `POST /api/providers/accounts/:id/validate`, `.../models/sync`, `GET .../usage` | Validation, model sync, usage probe |
 | `GET/POST /api/conversations`, `GET/PATCH/DELETE /api/conversations/:id` | Conversation lifecycle |
 | `POST /api/conversations/:id/messages` | Orchestrated SSE turn with fallback |
-| `GET/POST /api/projects`, `.../memories`, `.../tasks` | Project context |
+| `GET/POST /api/projects`, `.../memories`, `.../tasks`, `.../repositories` | Project context |
+| `POST /api/repositories/:id/index`, `GET /api/projects/:id/search` | Local indexing and lexical code retrieval |
 | `GET /api/usage/summary`, `/accounts`, `/catalog`, `POST /preview` | Analytics and routing preview |
 | `GET/POST/PATCH/DELETE /api/routing/rules` | Routing rule configuration |
 | `GET /api/overview`, `GET /api/health` | Dashboard and health |
@@ -105,6 +106,8 @@ All `/api` routes except auth and health require `Authorization: Bearer <token>`
 
 Phases 1–7 and 10–11 are complete; phases 8 and 9 are partial. See
 [DEVELOPMENT_PROGRESS.md](DEVELOPMENT_PROGRESS.md) for the exact delivered scope.
-Repository indexing, terminal/tool execution, the Monaco editor, and desktop/IDE
-clients are not implemented. No provider connections are simulated and no usage
-values are fabricated anywhere in the codebase.
+Repository indexing and lexical code retrieval are implemented (PostgreSQL
+full-text search over local chunks). Semantic/pgvector retrieval, terminal/tool
+execution, the Monaco editor, and desktop/IDE clients are not implemented. No
+provider connections are simulated and no usage values are fabricated anywhere
+in the codebase.

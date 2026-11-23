@@ -10,6 +10,8 @@ import {
   Pin,
   PinOff,
   Plus,
+  RefreshCw,
+  Search,
   Trash2,
 } from "lucide-react";
 import {
@@ -18,6 +20,8 @@ import {
   type Memory,
   type Project,
   type ProjectDetail,
+  type ProjectRepository,
+  type RepositoryHit,
   type Task,
 } from "../lib/api.js";
 import { notifyDataChanged } from "../lib/events.js";
@@ -44,6 +48,13 @@ function taskTone(status: string): "good" | "warn" | "bad" | "neutral" {
   if (status === "completed") return "good";
   if (status === "blocked") return "bad";
   if (status === "in_progress") return "warn";
+  return "neutral";
+}
+
+function indexTone(status: string): "good" | "warn" | "bad" | "neutral" {
+  if (status === "indexed") return "good";
+  if (status === "indexing") return "warn";
+  if (status === "failed") return "bad";
   return "neutral";
 }
 
@@ -118,7 +129,10 @@ function ProjectEditor({
           className="min-h-18"
         />
       </Field>
-      <Field label="Local root path" hint="Optional. Stored for reference only.">
+      <Field
+        label="Local root path"
+        hint="Optional. Used as the fallback index root when no repository path is linked."
+      >
         <Input
           value={rootPath}
           onChange={(event) => setRootPath(event.target.value)}
@@ -157,6 +171,16 @@ export function Projects() {
   const [taskTitle, setTaskTitle] = useState("");
   const [taskDetail, setTaskDetail] = useState("");
   const [taskBusy, setTaskBusy] = useState(false);
+
+  const [repoName, setRepoName] = useState("");
+  const [repoPath, setRepoPath] = useState("");
+  const [repoBranch, setRepoBranch] = useState("");
+  const [repoBusy, setRepoBusy] = useState(false);
+  const [indexingId, setIndexingId] = useState<string | null>(null);
+  const [indexNote, setIndexNote] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchBusy, setSearchBusy] = useState(false);
+  const [searchHits, setSearchHits] = useState<RepositoryHit[] | null>(null);
 
   const loadProjects = useCallback(
     (selectId?: string) => {
@@ -201,6 +225,9 @@ export function Projects() {
   }, []);
 
   useEffect(() => {
+    setIndexNote(null);
+    setSearchHits(null);
+    setSearchQuery("");
     if (selectedId) loadDetail(selectedId);
     else setDetail(null);
   }, [selectedId, loadDetail]);
@@ -304,6 +331,80 @@ export function Projects() {
     }
   };
 
+  const addRepository = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!detail) return;
+    setRepoBusy(true);
+    setError(null);
+    try {
+      await api.projects.addRepository(detail.project.id, {
+        name: repoName.trim(),
+        path: repoPath.trim(),
+        branch: repoBranch.trim() || undefined,
+      });
+      setRepoName("");
+      setRepoPath("");
+      setRepoBranch("");
+      loadDetail(detail.project.id);
+      notifyDataChanged();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : (err as Error).message);
+    } finally {
+      setRepoBusy(false);
+    }
+  };
+
+  const indexRepository = async (repository: ProjectRepository) => {
+    setIndexingId(repository.id);
+    setError(null);
+    setIndexNote(null);
+    try {
+      const result = await api.projects.indexRepository(repository.id);
+      const stats = result.stats;
+      setIndexNote(
+        `Indexed ${stats.indexedFiles} of ${stats.files} files into ${stats.chunks} chunks` +
+          (stats.skipped > 0 ? ` · skipped ${stats.skipped}` : "") +
+          (stats.truncated ? " · truncated at the safety cap" : ""),
+      );
+      if (selectedId) loadDetail(selectedId);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : (err as Error).message);
+    } finally {
+      setIndexingId(null);
+    }
+  };
+
+  const deleteRepository = async (repository: ProjectRepository) => {
+    if (!window.confirm(`Unlink repository "${repository.name}" and its index?`)) return;
+    try {
+      await api.projects.deleteRepository(repository.id);
+      setIndexNote(null);
+      setSearchHits(null);
+      if (selectedId) loadDetail(selectedId);
+      notifyDataChanged();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : (err as Error).message);
+    }
+  };
+
+  const searchCode = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!detail || !searchQuery.trim()) return;
+    setSearchBusy(true);
+    setError(null);
+    try {
+      const result = await api.projects.searchRepository(
+        detail.project.id,
+        searchQuery.trim(),
+      );
+      setSearchHits(result.hits);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : (err as Error).message);
+    } finally {
+      setSearchBusy(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -314,7 +415,7 @@ export function Projects() {
           </>
         }
         title="Projects"
-        description="Group conversations and give every provider the same durable context: project memories, task state, and linked repositories."
+        description="Group conversations and give every provider the same durable context: project memories, task state, and lexically indexed repositories."
         actions={
           <Button variant="primary" size="sm" onClick={() => setCreating((value) => !value)}>
             <Plus className="size-3.5" />
@@ -522,35 +623,169 @@ export function Projects() {
                       Linked repositories
                     </h2>
                     <p className="mt-0.5 text-[11px] text-dim">
-                      Repository indexing lands in a later phase
+                      Index text files locally; matching snippets join every provider's context.
                     </p>
                   </div>
                   <Badge tone="neutral">{detail.repositories.length}</Badge>
                 </div>
+
                 {detail.repositories.length === 0 ? (
                   <div className="rounded-xl border border-dashed border-edge/70 px-4 py-5 text-center text-xs leading-relaxed text-dim">
-                    No repositories linked. Repository indexing and cross-provider context
-                    injection arrive in a later phase.
+                    No repositories linked. Add an absolute local path below, then index it to
+                    give every provider lexical code context.
                   </div>
                 ) : (
                   <ul className="space-y-1.5">
                     {detail.repositories.map((repository) => (
                       <li
                         key={repository.id}
-                        className="flex flex-wrap items-center gap-2 rounded-lg border border-edge/70 bg-canvas/30 px-3 py-2 text-xs"
+                        className="rounded-lg border border-edge/70 bg-canvas/30 px-3 py-2 text-xs"
                       >
-                        <FolderGit2 className="size-3.5 text-faint" />
-                        <span className="text-ink">{repository.name}</span>
-                        <span className="truncate font-mono text-[10px] text-dim">
-                          {repository.path}
-                        </span>
-                        <Badge tone="neutral" className="ml-auto">
-                          {repository.indexStatus}
-                        </Badge>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <FolderGit2 className="size-3.5 shrink-0 text-faint" />
+                          <span className="text-ink">{repository.name}</span>
+                          <span className="min-w-0 flex-1 truncate font-mono text-[10px] text-dim">
+                            {repository.path}
+                          </span>
+                          <Badge tone={indexTone(repository.indexStatus)} dot>
+                            {repository.indexStatus}
+                          </Badge>
+                          <Button
+                            size="xs"
+                            variant="ghost"
+                            onClick={() => void indexRepository(repository)}
+                            disabled={indexingId === repository.id}
+                          >
+                            <RefreshCw
+                              className={cn(
+                                "size-3",
+                                indexingId === repository.id && "animate-spin",
+                              )}
+                            />
+                            {indexingId === repository.id ? "Indexing…" : "Index"}
+                          </Button>
+                          <Button
+                            size="xs"
+                            variant="danger"
+                            onClick={() => void deleteRepository(repository)}
+                            aria-label={`Unlink ${repository.name}`}
+                          >
+                            <Trash2 className="size-3" />
+                          </Button>
+                        </div>
+                        <div className="mt-1.5 flex flex-wrap items-center gap-3 pl-5 text-[10px] text-faint">
+                          <span>{repository.chunkCount} chunks</span>
+                          <span>
+                            {repository.lastIndexedAt
+                              ? `indexed ${formatRelative(repository.lastIndexedAt)}`
+                              : "never indexed"}
+                          </span>
+                          {repository.branch ? <span>branch {repository.branch}</span> : null}
+                        </div>
                       </li>
                     ))}
                   </ul>
                 )}
+
+                {indexNote ? (
+                  <p className="mt-2 rounded-lg border border-emerald-400/25 bg-emerald-400/10 px-3 py-2 text-[11px] text-emerald-300">
+                    {indexNote}
+                  </p>
+                ) : null}
+
+                <form onSubmit={addRepository} className="mt-3 space-y-2.5 border-t border-edge/70 pt-3">
+                  <div className="grid gap-2 sm:grid-cols-[160px_minmax(0,1fr)_120px]">
+                    <Field label="Name">
+                      <Input
+                        value={repoName}
+                        onChange={(event) => setRepoName(event.target.value)}
+                        placeholder="my-app"
+                        required
+                      />
+                    </Field>
+                    <Field label="Absolute path">
+                      <Input
+                        value={repoPath}
+                        onChange={(event) => setRepoPath(event.target.value)}
+                        placeholder="D:\\projects\\my-app"
+                        required
+                      />
+                    </Field>
+                    <Field label="Branch">
+                      <Input
+                        value={repoBranch}
+                        onChange={(event) => setRepoBranch(event.target.value)}
+                        placeholder="main"
+                      />
+                    </Field>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="max-w-xl text-[10px] leading-relaxed text-faint">
+                      Hidden files, .env, credential-like names, lockfiles, binaries,
+                      dependency and build folders are never indexed. Snippets stay in your
+                      database; no code is sent anywhere at index time.
+                    </p>
+                    <Button
+                      type="submit"
+                      size="sm"
+                      variant="secondary"
+                      disabled={repoBusy || !repoName.trim() || !repoPath.trim()}
+                    >
+                      <Plus className="size-3.5" />
+                      {repoBusy ? "Linking…" : "Link repository"}
+                    </Button>
+                  </div>
+                </form>
+
+                {detail.repositories.some((repository) => repository.indexStatus === "indexed") ? (
+                  <form onSubmit={searchCode} className="mt-3 border-t border-edge/70 pt-3">
+                    <div className="flex gap-2">
+                      <Input
+                        value={searchQuery}
+                        onChange={(event) => setSearchQuery(event.target.value)}
+                        placeholder="Search indexed code, e.g. quota_exhausted"
+                        aria-label="Search indexed code"
+                      />
+                      <Button
+                        type="submit"
+                        size="sm"
+                        variant="primary"
+                        disabled={searchBusy || !searchQuery.trim()}
+                      >
+                        <Search className="size-3.5" />
+                        {searchBusy ? "Searching…" : "Search"}
+                      </Button>
+                    </div>
+                    {searchHits !== null ? (
+                      searchHits.length === 0 ? (
+                        <p className="mt-2 text-[11px] text-faint">
+                          No lexical matches in the current index.
+                        </p>
+                      ) : (
+                        <ul className="mt-2 space-y-1.5">
+                          {searchHits.map((hit) => (
+                            <li
+                              key={hit.id}
+                              className="overflow-hidden rounded-lg border border-edge/70 bg-canvas/40"
+                            >
+                              <div className="flex items-center justify-between gap-2 border-b border-edge/60 px-3 py-1.5">
+                                <span className="truncate font-mono text-[10px] text-dim">
+                                  {hit.path}:{hit.startLine}-{hit.endLine}
+                                </span>
+                                <span className="shrink-0 text-[10px] text-faint">
+                                  score {hit.rank.toFixed(2)}
+                                </span>
+                              </div>
+                              <pre className="scrollbar-thin max-h-32 overflow-auto px-3 py-2 font-mono text-[10px] leading-relaxed whitespace-pre-wrap text-ink/80">
+                                {hit.content}
+                              </pre>
+                            </li>
+                          ))}
+                        </ul>
+                      )
+                    ) : null}
+                  </form>
+                ) : null}
               </Card>
 
               <div className="grid gap-4 xl:grid-cols-2">

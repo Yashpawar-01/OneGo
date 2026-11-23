@@ -14,6 +14,7 @@ import { badRequest, notFound } from "../lib/http-error.js";
 import type { ServiceContext } from "./context.js";
 import { clearCooldown, markCooldown } from "./cooldowns.js";
 import { appendMessage, nextContextVersion } from "./messages.js";
+import { searchRepositoryChunks } from "./repository-index.js";
 import { resolveTargets, type ResolvedTargets } from "./targets.js";
 
 export type ChatTurnInput = {
@@ -31,6 +32,7 @@ type ContextMeta = {
   omittedMessages: number;
   tokenEstimate: number;
   maxTokens: number;
+  repositoryHits: number;
 };
 
 export type ChatStreamEvent =
@@ -229,8 +231,35 @@ export async function* runChatTurn(
     prompt: content,
   });
 
+  // Code snippets share the context budget: cap them at ~20% of the window.
+  const repositoryBudgetChars = Math.min(
+    8_000,
+    Math.max(1_500, Math.floor(resolved.maxTokens * 0.2 * 4)),
+  );
+  const repositoryHits = conversation.projectId
+    ? await searchRepositoryChunks(ctx, conversation.projectId, content, 8)
+    : [];
+  const repositoryContext: Array<{
+    path: string;
+    startLine: number;
+    endLine: number;
+    content: string;
+  }> = [];
+  let repositoryChars = 0;
+  for (const hit of repositoryHits) {
+    if (repositoryChars + hit.content.length > repositoryBudgetChars) break;
+    repositoryContext.push({
+      path: hit.path,
+      startLine: hit.startLine,
+      endLine: hit.endLine,
+      content: hit.content,
+    });
+    repositoryChars += hit.content.length;
+  }
+
   const context = buildContextPackage({
     messages: toChatMessages(history),
+    repositoryContext,
     projectMemory: projectContext?.[0].map((entry) => ({
       key: entry.key,
       value: entry.value,
@@ -255,6 +284,7 @@ export async function* runChatTurn(
     omittedMessages: context.omittedMessages,
     tokenEstimate: context.tokenEstimate,
     maxTokens: resolved.maxTokens,
+    repositoryHits: repositoryContext.length,
   };
 
   yield {
@@ -569,6 +599,7 @@ export async function* runChatTurn(
           messages: context.messages,
           includedMessages: context.includedMessages,
           omittedMessages: context.omittedMessages,
+          repositoryHits: contextMeta.repositoryHits,
           accountId: doneData.accountId,
           modelId: doneData.modelId,
         }),

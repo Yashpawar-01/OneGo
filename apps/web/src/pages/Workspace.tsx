@@ -62,6 +62,7 @@ type StreamState = {
     omittedMessages: number;
     tokenEstimate: number;
     maxTokens: number;
+    repositoryHits: number;
   } | null;
   classification: { type: string; confidence: number } | null;
   routingRule: { id: string; name: string } | null;
@@ -899,6 +900,14 @@ export function Workspace() {
                   />
                   <InfoRow label="Omitted" value={`${stream.context.omittedMessages} messages`} />
                   <InfoRow label="Max output" value={formatTokens(stream.context.maxTokens)} />
+                  <InfoRow
+                    label="Code hits"
+                    value={
+                      stream.context.repositoryHits > 0
+                        ? `${stream.context.repositoryHits} snippets`
+                        : "none"
+                    }
+                  />
                   {stream.classification ? (
                     <InfoRow
                       label="Classified"

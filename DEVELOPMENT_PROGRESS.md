@@ -109,9 +109,9 @@ phase, together with test results and any deviations.
 - Projects CRUD; project-scoped memories (key/value/category/pinned, versioned)
   and task state (pending / in progress / blocked / completed / cancelled).
 - Pinned memories, open tasks, and file-change summaries are injected into the
-  context package for every turn, regardless of provider.
-- **Deferred:** repository indexing/retrieval, embeddings, and file-change
-  capture. The Projects UI labels linked repositories as not indexed.
+  context package for every turn, regardless of provider. Linked repositories
+  are indexed and their matching snippets are injected too (below).
+- **Deferred:** semantic (embedding-based) retrieval and file-change capture.
 
 ## Phase 9 — workspace — partially completed 2026-11-23
 
@@ -208,6 +208,38 @@ phase, together with test results and any deviations.
 | `npm run build` | ✅ Server bundle 112 KB; web JS 441 KB (126 KB gzip), CSS 73 KB |
 | UI smoke test | ✅ Signed in → `/router` renders the task-type condition picker and priority explanations; created a `task: debugging` rule through the form, chip rendered, deleted via API; no new console errors |
 
+## Repository indexing and retrieval — completed 2026-11-23
+
+- `RepositoryChunk` stores line-ranged text chunks backed by a GIN full-text
+  index (custom SQL in the migration). Indexing walks the repository's absolute
+  local path and skips hidden entries, `.env`, credential-like names, lockfiles,
+  binaries, dependency/build folders and symlinks; files over 256 KB are
+  skipped and the walk is capped at 4,000 files / 20,000 chunks.
+- `POST /api/repositories/:id/index` re-indexes atomically (delete + batched
+  insert) and records `indexed`/`failed` status with a timestamp. Repository
+  DTOs expose `chunkCount`.
+- `GET /api/projects/:id/search` and every chat turn retrieve ranked chunks
+  using per-token OR full-text ranking (`plainto_tsquery` per token with summed
+  `ts_rank`). Retrieved snippets are capped at ~20% of the model's context
+  budget and rendered as `## Repository context`; SSE `meta` and `done` report
+  `repositoryHits`.
+- Projects UI: link repositories by absolute path, index with live status and
+  skipped/truncated stats, unlink, and search indexed code with scored results.
+  The Workspace inspector shows code hits per turn.
+- Retrieval is lexical by design: no embedding provider or key is assumed, so
+  nothing is fabricated. The chunk store and retrieval seam are ready for a
+  semantic (pgvector) layer once an embedding channel exists.
+
+### Verification (run 2026-11-23)
+
+| Check | Result |
+| --- | --- |
+| `npm run typecheck` | ✅ Passed — shared, core, server, web |
+| `npm test` | ✅ 55 tests passed (45 core, 10 server) |
+| `npm run build` | ✅ Server bundle 126 KB; web JS 446 KB (127 KB gzip), CSS 73.5 KB |
+| Integration test | ✅ Relative paths rejected; temp repo indexed (2 files/2 chunks; hidden, node_modules and binary skipped); search returns the right chunk; chat meta reports 1 repository hit |
+| UI smoke test | ✅ Created a project, linked and indexed `packages/core` (20 files → 69 chunks), searched `FallbackRunner` (7 scored hits), unlinked; no console errors |
+
 ## Decisions log
 
 - **2026-11-19** — Express over NestJS: fewer moving parts; module isolation is
@@ -223,6 +255,11 @@ phase, together with test results and any deviations.
   build step); the server bundle and Vite inline them.
 - **2026-11-23** — Cooldowns are kept in an in-memory map with explicit
   timestamps; Redis remains optional and is not required for single-node usage.
+- **2026-11-23** — Repository retrieval starts lexical (PostgreSQL full-text)
+  rather than pgvector: no embedding provider or key is required, and
+  hash-based or simulated embeddings would fabricate meaning. The chunk table
+  and retrieval seam are ready for a semantic layer once an embedding channel
+  is configured.
 - **2026-11-23** — Routing rules are evaluated inside `resolveTargets` before
   every turn: ascending priority, explicit per-request picks win, unknown
   condition keys fail closed, and stale targets fall through to normal routing
@@ -235,15 +272,15 @@ phase, together with test results and any deviations.
   interactively. Both render explicit unavailable states; token counts stay blank.
 - Token usage for Copilot depends on SDK `assistant.usage` events; Qoder reports
   none.
-- Repository indexing, tool execution, terminal, Monaco editor, and desktop/IDE
-  clients are not part of this build.
+- Semantic (pgvector) retrieval, tool execution, terminal, Monaco editor, and
+  desktop/IDE clients are not part of this build.
 - Redis-backed distributed cooldowns are deferred (cooldowns are per-process).
 - `npm audit` currently reports high-severity advisories in transitive
   dev/build tooling; no runtime dependency has been identified as affected.
 
 ## Next up
 
-1. Repository indexing + retrieval (pgvector) and file-change capture with
-   approval-gated edits.
+1. Semantic retrieval (pgvector) over the chunk store and file-change capture
+   with approval-gated edits.
 2. Terminal and tool execution with allowlists and approval workflow.
 3. Desktop/VS Code clients over the same HTTP/SSE contract.
