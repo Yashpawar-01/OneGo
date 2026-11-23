@@ -177,7 +177,7 @@ model ProviderModel {
   providerId         String   @map("provider_id")
   modelId            String   @map("model_id")
   displayName        String   @map("display_name")
-  contextWindow      Int      @map("context_window")
+  contextWindow      Int?     @map("context_window")
   maxOutputTokens    Int?     @map("max_output_tokens")
   supportsStreaming  Boolean  @default(true) @map("supports_streaming")
   supportsTools      Boolean  @default(false) @map("supports_tools")

@@ -83,6 +83,30 @@ integrate with, and what it must refuse to fake.
   execution must be sandboxed, use an allowlisted working directory, and never
   pass secrets on the command line (env only).
 
+## Implementation status (2026-11-23)
+
+| Provider | Adapter | Endpoint / mechanism | Usage captured |
+| --- | --- | --- | --- |
+| OpenAI | `packages/core/src/adapters/openai.ts` | HTTP `POST /v1/chat/completions` (stream + non-stream) | From response usage; rate-limit headers classified |
+| Anthropic | `packages/core/src/adapters/anthropic.ts` | HTTP `POST /v1/messages` (stream + non-stream) | From response usage; `anthropic-ratelimit-*` parsed |
+| GitHub Copilot | `apps/server/src/adapters/copilot.ts` | `@github/copilot-sdk` session with streaming deltas | `assistant.usage` events when present; otherwise unavailable |
+| Qoder | `apps/server/src/adapters/qoder-cli.ts` | `qoder -p --output-format text|json` subprocess | None exposed; JSON usage parsed if the CLI reports it |
+
+Implementation notes:
+
+- **OpenAI** uses Chat Completions for broad model coverage; Chat Completions
+  remains supported alongside the Responses API. `insufficient_quota` is a hard
+  stop (never retried); other 429s honour `retry-after`.
+- **Anthropic** sends `x-api-key` plus `anthropic-version`; credit/subscription
+  exhaustion messages are classified as `quota_exhausted`.
+- **Copilot** pools SDK clients per token hash and stops them after 5 idle
+  minutes. Session permission requests are denied by default — OneGo does not
+  auto-approve file edits or shell commands. The token comes from the account
+  credential and `useLoggedInUser` is disabled.
+- **Qoder** requires the official CLI on the host. The token is passed via
+  environment variables only (never argv), permission prompts are not
+  auto-approved (no `--yolo`), and model defaults to `auto` unless configured.
+
 ## Cross-cutting rules
 
 1. Never extract credentials from IDE sessions, keychains, or browser storage.

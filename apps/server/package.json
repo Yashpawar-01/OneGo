@@ -14,12 +14,14 @@
     "db:studio": "prisma studio"
   },
   "dependencies": {
+    "@github/copilot-sdk": "^1.0.34",
     "@onego/core": "*",
     "@onego/shared": "*",
     "@prisma/client": "^6.2.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.3",
     "pino": "^9.6.0",
     "pino-http": "^10.4.0",
     "zod": "^3.24.1"
@@ -27,6 +29,7 @@
   "devDependencies": {
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/supertest": "^6.0.2",
     "prisma": "^6.2.0",
     "supertest": "^7.0.0",

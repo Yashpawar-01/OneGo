@@ -21,7 +21,8 @@ export type ProviderCapabilities = {
 export type ProviderModelInfo = {
   id: string;
   displayName: string;
-  contextWindow: number;
+  /** Undefined when the provider does not report it through an official API. */
+  contextWindow?: number;
   maxOutputTokens?: number;
   supportsTools: boolean;
   supportsVision: boolean;
