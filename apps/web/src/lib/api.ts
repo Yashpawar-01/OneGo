@@ -227,6 +227,15 @@ export type UsageSummary = {
     estimatedCostUsd: number | null;
     sources: Record<string, number>;
   };
+  previous: {
+    requests: number;
+    success: number;
+    errors: number;
+    successRate: number | null;
+    inputTokens: number;
+    outputTokens: number;
+    estimatedCostUsd: number | null;
+  };
   byDay: Array<{
     day: string;
     requests: number;

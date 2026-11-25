@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Activity,
+  ArrowDownRight,
+  ArrowUpRight,
   CheckCircle2,
   DollarSign,
   Gauge,
+  Minus,
   RefreshCw,
   Waypoints,
 } from "lucide-react";
@@ -36,6 +39,11 @@ const RANGES = [1, 7, 14, 30, 90] as const;
 function share(value: number, max: number): number {
   if (max <= 0 || value <= 0) return 0;
   return Math.max(3, Math.round((value / max) * 100));
+}
+
+function changePercent(current: number, previous: number): number | null {
+  if (previous <= 0) return null;
+  return Math.round(((current - previous) / previous) * 100);
 }
 
 export function UsageAnalytics() {
@@ -117,6 +125,15 @@ export function UsageAnalytics() {
               value={formatNumber(summary.totals.requests)}
               icon={<Activity className="size-4" />}
               accent="brand"
+              delta={
+                <TrendChip
+                  delta={changePercent(
+                    summary.totals.requests,
+                    summary.previous.requests,
+                  )}
+                  title={`Compared with the previous ${summary.range.days} days`}
+                />
+              }
               hint={`${formatNumber(summary.totals.success)} success · ${formatNumber(
                 summary.totals.errors,
               )} failed`}
@@ -130,6 +147,20 @@ export function UsageAnalytics() {
               }
               icon={<CheckCircle2 className="size-4" />}
               accent="emerald"
+              delta={
+                <TrendChip
+                  delta={
+                    summary.totals.successRate === null ||
+                    summary.previous.successRate === null
+                      ? null
+                      : Math.round(
+                          (summary.totals.successRate - summary.previous.successRate) * 100,
+                        )
+                  }
+                  unit="pts"
+                  title={`Compared with the previous ${summary.range.days} days`}
+                />
+              }
               hint={
                 summary.totals.successRate === null
                   ? "No completed calls in this window"
@@ -141,6 +172,15 @@ export function UsageAnalytics() {
               value={formatTokens(summary.totals.inputTokens)}
               icon={<Gauge className="size-4" />}
               accent="cyan"
+              delta={
+                <TrendChip
+                  delta={changePercent(
+                    summary.totals.inputTokens,
+                    summary.previous.inputTokens,
+                  )}
+                  title={`Compared with the previous ${summary.range.days} days`}
+                />
+              }
               hint="Only where providers report usage"
             />
             <Stat
@@ -148,18 +188,33 @@ export function UsageAnalytics() {
               value={formatCost(summary.totals.estimatedCostUsd)}
               icon={<DollarSign className="size-4" />}
               accent="amber"
+              delta={
+                <TrendChip
+                  delta={
+                    summary.totals.estimatedCostUsd === null ||
+                    summary.previous.estimatedCostUsd === null
+                      ? null
+                      : changePercent(
+                          summary.totals.estimatedCostUsd,
+                          summary.previous.estimatedCostUsd,
+                        )
+                  }
+                  title={`Compared with the previous ${summary.range.days} days`}
+                />
+              }
               hint="List-price estimate, blank when unpriced"
             />
           </section>
 
-          <Card>
-            <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <h2 className="font-display text-sm font-semibold text-ink">Requests by day</h2>
-                <p className="mt-1 text-xs text-dim">
-                  Complete responses only · {days === 1 ? "last 24 hours" : `last ${days} days`}
-                </p>
-              </div>
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)]">
+            <Card>
+              <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h2 className="font-display text-sm font-semibold text-ink">Requests by day</h2>
+                  <p className="mt-1 text-xs text-dim">
+                    Complete responses only · {days === 1 ? "last 24 hours" : `last ${days} days`}
+                  </p>
+                </div>
               <div className="flex flex-wrap items-center gap-2">
                 <Legend swatch="bg-[linear-gradient(180deg,#93a2ff,#6f7ff2)]" label="success" />
                 {summary.totals.errors > 0 ? (
@@ -181,7 +236,39 @@ export function UsageAnalytics() {
             ) : (
               <DayChart days={summary.byDay} maxRequests={maxDayRequests} />
             )}
-          </Card>
+            </Card>
+
+            <div className="grid gap-4">
+              <Card>
+                <CardHeading
+                  title="Status distribution"
+                  count={summary.totals.requests}
+                  hint="Completed calls in this window"
+                />
+                {summary.totals.requests === 0 ? (
+                  <QuietLine>No requests recorded in this window.</QuietLine>
+                ) : (
+                  <StatusDonut
+                    success={summary.totals.success}
+                    failed={summary.totals.errors}
+                  />
+                )}
+              </Card>
+
+              <Card>
+                <CardHeading
+                  title="Reliability by provider"
+                  count={summary.byProvider.length}
+                  hint="Successful share of recorded calls"
+                />
+                {summary.byProvider.length === 0 ? (
+                  <QuietLine>No provider activity in this window.</QuietLine>
+                ) : (
+                  <ReliabilityRows providers={summary.byProvider} />
+                )}
+              </Card>
+            </div>
+          </div>
 
           <div className="grid gap-4 xl:grid-cols-2">
             <Card>
@@ -542,6 +629,171 @@ function DayChart({
           );
         })}
       </div>
+    </div>
+  );
+}
+
+function TrendChip({
+  delta,
+  unit = "%",
+  title,
+}: {
+  delta: number | null;
+  unit?: string;
+  title?: string;
+}) {
+  if (delta === null) return null;
+  const flat = delta === 0;
+  const up = delta > 0;
+  const Icon = flat ? Minus : up ? ArrowUpRight : ArrowDownRight;
+  return (
+    <span
+      title={title}
+      className={cn(
+        "inline-flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-[10px] leading-none font-medium tabular-nums",
+        flat
+          ? "border-edge bg-white/[0.03] text-faint"
+          : up
+            ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-300"
+            : "border-rose-400/25 bg-rose-400/10 text-rose-300",
+      )}
+    >
+      <Icon className="size-3" />
+      {up ? "+" : ""}
+      {delta}
+      {unit}
+    </span>
+  );
+}
+
+function DonutRow({
+  color,
+  label,
+  value,
+  total,
+}: {
+  color: string;
+  label: string;
+  value: number;
+  total: number;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-2 text-[11px]">
+      <span className="flex items-center gap-2 text-dim">
+        <span className={cn("size-2 rounded-full", color)} />
+        {label}
+      </span>
+      <span className="font-mono text-ink">
+        {formatNumber(value)}
+        <span className="ml-1.5 text-faint">
+          {total > 0 ? Math.round((value / total) * 100) : 0}%
+        </span>
+      </span>
+    </div>
+  );
+}
+
+function StatusDonut({ success, failed }: { success: number; failed: number }) {
+  const total = success + failed;
+  const radius = 42;
+  const circumference = 2 * Math.PI * radius;
+  const successLength = total > 0 ? (success / total) * circumference : 0;
+  const failedLength = total > 0 ? (failed / total) * circumference : 0;
+  const rate = total > 0 ? success / total : null;
+
+  return (
+    <div className="flex flex-col items-center gap-5 sm:flex-row">
+      <div className="relative size-[144px] shrink-0">
+        <svg viewBox="0 0 120 120" className="size-full -rotate-90" aria-hidden="true">
+          <circle
+            cx="60"
+            cy="60"
+            r={radius}
+            fill="none"
+            stroke="rgba(255,255,255,0.055)"
+            strokeWidth="12"
+          />
+          {success > 0 ? (
+            <circle
+              cx="60"
+              cy="60"
+              r={radius}
+              fill="none"
+              stroke="#34d399"
+              strokeWidth="12"
+              strokeDasharray={`${Math.max(0, successLength - 2)} ${circumference}`}
+            />
+          ) : null}
+          {failed > 0 ? (
+            <circle
+              cx="60"
+              cy="60"
+              r={radius}
+              fill="none"
+              stroke="#fb7185"
+              strokeWidth="12"
+              strokeDasharray={`${Math.max(0, failedLength - 2)} ${circumference}`}
+              strokeDashoffset={-successLength}
+            />
+          ) : null}
+        </svg>
+        <div className="absolute inset-0 grid place-items-center">
+          <div className="text-center">
+            <div className="font-display text-[26px] leading-none font-semibold text-ink">
+              {formatNumber(total)}
+            </div>
+            <div className="mt-1 text-[9px] font-semibold tracking-[0.16em] text-faint uppercase">
+              requests
+            </div>
+          </div>
+        </div>
+      </div>
+      <div className="w-full min-w-0 flex-1 space-y-2">
+        <DonutRow color="bg-emerald-400" label="Succeeded" value={success} total={total} />
+        <DonutRow color="bg-rose-400" label="Failed" value={failed} total={total} />
+        <div className="flex items-center justify-between gap-2 border-t border-edge/60 pt-2 text-[11px]">
+          <span className="text-faint">success rate</span>
+          <span className="font-mono text-ink">
+            {rate === null ? "—" : `${Math.round(rate * 100)}%`}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ReliabilityRows({ providers }: { providers: UsageSummary["byProvider"] }) {
+  const rows = [...providers].sort((a, b) => b.requests - a.requests);
+  return (
+    <div className="space-y-3">
+      {rows.map((row) => {
+        const ok = Math.max(0, row.requests - row.errors);
+        const pct = row.requests === 0 ? 100 : Math.round((ok / row.requests) * 100);
+        const tone =
+          pct >= 99 ? "bg-emerald-400/80" : pct >= 90 ? "bg-amber-400/80" : "bg-rose-400/80";
+        return (
+          <div key={row.providerKind}>
+            <div className="flex items-center justify-between gap-2 text-[11px]">
+              <span className="flex min-w-0 items-center gap-2">
+                <ProviderGlyph kind={row.providerKind} size="sm" />
+                <span className="truncate text-dim">{row.name}</span>
+              </span>
+              <span className="shrink-0 font-mono text-ink">
+                {pct}%
+                <span className="ml-1.5 text-faint">
+                  {formatNumber(ok)}/{formatNumber(row.requests)}
+                </span>
+              </span>
+            </div>
+            <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-white/[0.05]">
+              <div
+                className={cn("h-full rounded-full", tone)}
+                style={{ width: `${Math.max(2, pct)}%` }}
+              />
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

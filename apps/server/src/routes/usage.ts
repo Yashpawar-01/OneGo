@@ -50,9 +50,10 @@ export function createUsageRouter(ctx: ServiceContext): Router {
       const { userId } = req as AuthedRequest;
       const { days } = rangeSchema.parse(req.query);
       const since = startOfDaysAgo(days);
+      const comparisonSince = startOfDaysAgo(days * 2);
 
       const events = (await ctx.prisma.usageEvent.findMany({
-        where: { account: { userId }, occurredAt: { gte: since } },
+        where: { account: { userId }, occurredAt: { gte: comparisonSince } },
         include: {
           account: {
             select: {
@@ -74,6 +75,13 @@ export function createUsageRouter(ctx: ServiceContext): Router {
       let costObserved = false;
       const sources: Record<string, number> = {};
 
+      let prevRequests = 0;
+      let prevSuccess = 0;
+      let prevInputTokens = 0;
+      let prevOutputTokens = 0;
+      let prevCostSum = 0;
+      let prevCostObserved = false;
+
       const byDay = new Map<
         string,
         { requests: number; errors: number; inputTokens: number; outputTokens: number; costUsd: number | null }
@@ -92,14 +100,27 @@ export function createUsageRouter(ctx: ServiceContext): Router {
       >();
 
       for (const event of events) {
-        requests += 1;
         const ok = event.status === "success";
-        if (ok) success += 1;
         const input = event.inputTokens ?? 0;
         const output = event.outputTokens ?? 0;
+        const cost = costOf(event.estimatedCostUsd);
+
+        if (event.occurredAt < since) {
+          prevRequests += 1;
+          if (ok) prevSuccess += 1;
+          prevInputTokens += input;
+          prevOutputTokens += output;
+          if (cost !== null) {
+            prevCostSum += cost;
+            prevCostObserved = true;
+          }
+          continue;
+        }
+
+        requests += 1;
+        if (ok) success += 1;
         inputTokens += input;
         outputTokens += output;
-        const cost = costOf(event.estimatedCostUsd);
         if (cost !== null) {
           costSum += cost;
           costObserved = true;
@@ -178,6 +199,15 @@ export function createUsageRouter(ctx: ServiceContext): Router {
           sources: Object.fromEntries(
             Object.entries(sources).sort(([, a], [, b]) => b - a),
           ),
+        },
+        previous: {
+          requests: prevRequests,
+          success: prevSuccess,
+          errors: prevRequests - prevSuccess,
+          successRate: prevRequests === 0 ? null : prevSuccess / prevRequests,
+          inputTokens: prevInputTokens,
+          outputTokens: prevOutputTokens,
+          estimatedCostUsd: prevCostObserved ? prevCostSum : null,
         },
         byDay: [...byDay.entries()]
           .sort(([a], [b]) => a.localeCompare(b))

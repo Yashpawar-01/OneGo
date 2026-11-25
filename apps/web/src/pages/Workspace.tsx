@@ -4,6 +4,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ChangeEvent,
   type KeyboardEvent,
   type ReactNode,
 } from "react";
@@ -11,7 +12,11 @@ import { useSearchParams } from "react-router-dom";
 import {
   Activity,
   ArrowUp,
+  ChevronDown,
   ChevronRight,
+  Cpu,
+  FolderKanban,
+  KeyRound,
   Lock,
   MessageSquare,
   Pencil,
@@ -41,7 +46,6 @@ import {
   ErrorBanner,
   ProviderGlyph,
   SegmentedControl,
-  Select,
   Spinner,
   cn,
   formatRelative,
@@ -202,6 +206,93 @@ const ROUTING_COPY: Record<"manual" | "automatic" | "intelligent", string> = {
   automatic: "Lowest-priority healthy account. Quota, rate, or auth failures cool down automatically.",
   intelligent: "Classifies the prompt locally, then ranks synced models by capability, context, and price.",
 };
+
+function ChipSelect({
+  icon,
+  label,
+  value,
+  onChange,
+  disabled,
+  children,
+}: {
+  icon?: ReactNode;
+  label: string;
+  value: string;
+  onChange: (event: ChangeEvent<HTMLSelectElement>) => void;
+  disabled?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <span
+      className={cn(
+        "inline-flex h-6 max-w-[200px] items-center gap-1 rounded-full border border-edge bg-canvas/60 pr-1 pl-2 text-[10px] transition-colors",
+        disabled ? "opacity-55" : "hover:border-edge-strong",
+      )}
+    >
+      {icon}
+      <span className="shrink-0 text-faint">{label}</span>
+      <span className="relative flex min-w-0 items-center">
+        <select
+          value={value}
+          onChange={onChange}
+          disabled={disabled}
+          className="max-w-[118px] appearance-none truncate bg-transparent pr-3.5 text-[10px] font-medium text-ink focus:outline-none disabled:cursor-not-allowed"
+        >
+          {children}
+        </select>
+        <ChevronDown className="pointer-events-none absolute right-0 size-3 text-faint" />
+      </span>
+    </span>
+  );
+}
+
+type TimelineTone = "brand" | "emerald" | "amber" | "faint";
+
+const TIMELINE_DOTS: Record<TimelineTone, string> = {
+  brand: "bg-brand",
+  emerald: "bg-emerald-400",
+  amber: "bg-amber-400",
+  faint: "bg-edge-strong",
+};
+
+type TimelineStep = {
+  key: string;
+  tone: TimelineTone;
+  title: string;
+  detail?: string;
+  icon?: ReactNode;
+  pulse?: boolean;
+};
+
+function RunTimeline({ steps }: { steps: TimelineStep[] }) {
+  return (
+    <ol className="relative space-y-3 pl-4">
+      <span className="absolute top-1.5 bottom-1.5 left-[5px] w-px bg-edge" aria-hidden="true" />
+      {steps.map((step) => (
+        <li key={step.key} className="relative">
+          <span
+            className={cn(
+              "absolute top-1 -left-4 size-[7px] rounded-full ring-4 ring-panel",
+              TIMELINE_DOTS[step.tone],
+              step.pulse && "animate-pulse-soft",
+            )}
+          />
+          <div className="flex items-start gap-1.5">
+            {step.icon ? <span className="mt-px shrink-0">{step.icon}</span> : null}
+            <div className="min-w-0">
+              <div className="text-[11px] leading-snug font-medium break-words text-ink">
+                {step.title}
+              </div>
+              {step.detail ? (
+                <div className="mt-0.5 text-[10px] leading-relaxed text-faint">{step.detail}</div>
+              ) : null}
+            </div>
+          </div>
+        </li>
+      ))}
+    </ol>
+  );
+}
 
 export function Workspace() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -506,6 +597,72 @@ export function Workspace() {
     "Draft a safe migration plan for the PostgreSQL schema",
   ];
 
+  const runSteps: TimelineStep[] = [];
+  if (stream.routingRule) {
+    runSteps.push({
+      key: "rule",
+      tone: "brand",
+      title: stream.routingRule.name,
+      detail: "routing rule applied",
+    });
+  }
+  if (stream.classification) {
+    runSteps.push({
+      key: "classification",
+      tone: "brand",
+      title: `Classified as ${stream.classification.type}`,
+      detail: `${Math.round(stream.classification.confidence * 100)}% confidence, resolved locally`,
+    });
+  }
+  if (stream.context) {
+    runSteps.push({
+      key: "context",
+      tone: "faint",
+      title: `${stream.context.includedMessages} messages in context`,
+      detail: `~${formatTokens(stream.context.tokenEstimate)} tokens · ${
+        stream.context.omittedMessages
+      } omitted · ${stream.context.repositoryHits} code snippets`,
+    });
+  }
+  if (stream.attempt > 0) {
+    runSteps.push({
+      key: "attempt",
+      tone: stream.active ? "brand" : "emerald",
+      title: `${stream.label ?? activeLabel}${stream.modelId ? ` · ${stream.modelId}` : ""}`,
+      detail: stream.active ? `attempt ${stream.attempt} streaming` : `attempt ${stream.attempt} completed`,
+      icon: stream.providerKind ? <ProviderGlyph kind={stream.providerKind} size="sm" /> : null,
+      pulse: stream.active,
+    });
+  }
+  stream.fallbacks.forEach((fallback, index) => {
+    runSteps.push({
+      key: `fallback-${index}`,
+      tone: "amber",
+      title: `Fallback · ${fallback.reason.replaceAll("_", " ")}`,
+      detail: fallback.message,
+    });
+  });
+  if (stream.usage) {
+    runSteps.push({
+      key: "usage",
+      tone: "emerald",
+      title: "Usage recorded",
+      detail: `${formatTokens(stream.usage.inputTokens)} in · ${formatTokens(
+        stream.usage.outputTokens,
+      )} out`,
+    });
+  }
+
+  const contextChip = stream.context
+    ? `${stream.context.includedMessages} msgs · ~${formatTokens(
+        stream.context.tokenEstimate,
+      )}${stream.context.repositoryHits > 0 ? ` · ${stream.context.repositoryHits} code` : ""}`
+    : contextSnapshot
+      ? `snapshot v${contextSnapshot.version}${
+          contextSnapshot.tokenCount ? ` · ${formatTokens(contextSnapshot.tokenCount)} tok` : ""
+        }`
+      : null;
+
   return (
     <div className="flex flex-col gap-4 lg:h-[calc(100vh-8rem)] lg:min-h-[640px]">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -589,6 +746,12 @@ export function Workspace() {
                           {conversation.title}
                         </span>
                         <span className="mt-0.5 flex items-center gap-1.5 text-[10px] text-faint">
+                          {stream.active && conversation.id === activeId ? (
+                            <span className="inline-flex items-center gap-1 text-emerald-300">
+                              <span className="size-1.5 animate-pulse-soft rounded-full bg-emerald-400" />
+                              running
+                            </span>
+                          ) : null}
                           {conversation.messageCount ?? 0} messages
                           <span className="size-0.5 rounded-full bg-faint" />
                           {formatRelative(
@@ -662,67 +825,6 @@ export function Workspace() {
                   ]}
                 />
               </div>
-            </div>
-
-            <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-              {routingMode === "manual" ? (
-                <>
-                  <Select
-                    aria-label="Provider account"
-                    value={selectedAccountId}
-                    onChange={(event) => {
-                      setSelectedAccountId(event.target.value);
-                      setSelectedModelId("");
-                      if (detail) {
-                        void patchConversation(detail.conversation.id, {
-                          activeAccountId: event.target.value || null,
-                        });
-                      }
-                    }}
-                    className="h-7 w-auto py-0 text-[11px]"
-                  >
-                    <option value="">Active / auto account</option>
-                    {selectableAccounts.map((entry) => (
-                      <option key={entry.account.id} value={entry.account.id}>
-                        {entry.account.label} · {entry.providerName}
-                      </option>
-                    ))}
-                  </Select>
-                  <Select
-                    aria-label="Model"
-                    value={selectedModelId}
-                    onChange={(event) => setSelectedModelId(event.target.value)}
-                    className="h-7 w-auto py-0 text-[11px]"
-                  >
-                    <option value="">Default model</option>
-                    {(selectedAccount?.models ?? []).map((model) => (
-                      <option key={model.id} value={model.id}>
-                        {model.displayName}
-                      </option>
-                    ))}
-                  </Select>
-                </>
-              ) : null}
-              <Select
-                aria-label="Project"
-                value={detail?.conversation.projectId ?? ""}
-                onChange={(event) => {
-                  if (detail) {
-                    void patchConversation(detail.conversation.id, {
-                      projectId: event.target.value || null,
-                    });
-                  }
-                }}
-                className="h-7 w-auto py-0 text-[11px]"
-                disabled={!detail}
-              >
-                <option value="">No project</option>
-                {projects.map((project) => (
-                  <option key={project.id} value={project.id}>
-                    {project.name}
-                  </option>
-                ))}
-              </Select>
             </div>
           </div>
 
@@ -839,7 +941,81 @@ export function Workspace() {
                 className="scrollbar-thin max-h-40 min-h-12 w-full resize-none bg-transparent py-1 text-sm leading-relaxed text-ink placeholder:text-faint focus:outline-none"
                 disabled={stream.active}
               />
-              <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
+              <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                {routingMode === "manual" ? (
+                  <>
+                    <ChipSelect
+                      icon={<KeyRound className="size-3 text-faint" />}
+                      label="account"
+                      value={selectedAccountId}
+                      onChange={(event) => {
+                        setSelectedAccountId(event.target.value);
+                        setSelectedModelId("");
+                        if (detail) {
+                          void patchConversation(detail.conversation.id, {
+                            activeAccountId: event.target.value || null,
+                          });
+                        }
+                      }}
+                    >
+                      <option value="">auto</option>
+                      {selectableAccounts.map((entry) => (
+                        <option key={entry.account.id} value={entry.account.id}>
+                          {entry.account.label}
+                        </option>
+                      ))}
+                    </ChipSelect>
+                    <ChipSelect
+                      icon={<Cpu className="size-3 text-faint" />}
+                      label="model"
+                      value={selectedModelId}
+                      onChange={(event) => setSelectedModelId(event.target.value)}
+                      disabled={!selectedAccount}
+                    >
+                      <option value="">default</option>
+                      {(selectedAccount?.models ?? []).map((model) => (
+                        <option key={model.id} value={model.id}>
+                          {model.displayName}
+                        </option>
+                      ))}
+                    </ChipSelect>
+                  </>
+                ) : null}
+                <ChipSelect
+                  icon={<FolderKanban className="size-3 text-faint" />}
+                  label="project"
+                  value={detail?.conversation.projectId ?? ""}
+                  onChange={(event) => {
+                    if (detail) {
+                      void patchConversation(detail.conversation.id, {
+                        projectId: event.target.value || null,
+                      });
+                    }
+                  }}
+                  disabled={!detail}
+                >
+                  <option value="">none</option>
+                  {projects.map((project) => (
+                    <option key={project.id} value={project.id}>
+                      {project.name}
+                    </option>
+                  ))}
+                </ChipSelect>
+                {contextChip ? (
+                  <span
+                    className="inline-flex h-6 items-center gap-1 rounded-full border border-edge bg-canvas/60 px-2 text-[10px] text-dim"
+                    title={
+                      stream.context
+                        ? "Assembled for this run"
+                        : "Context persisted with the last completed run"
+                    }
+                  >
+                    <Zap className="size-3 text-faint" />
+                    {contextChip}
+                  </span>
+                ) : null}
+              </div>
+              <div className="mt-2 flex flex-wrap items-center justify-between gap-2 border-t border-edge/60 pt-2">
                 <span className="flex min-w-0 items-center gap-1.5 truncate text-[10px] text-faint">
                   <span className="hidden sm:inline">Enter to send · Shift+Enter for newline</span>
                   <span className="hidden text-edge-strong sm:inline">/</span>
@@ -944,7 +1120,7 @@ export function Workspace() {
             </InspectorSection>
 
             <InspectorSection
-              title="Attempts"
+              title="Run timeline"
               icon={<Sparkles className="size-3" />}
               action={
                 stream.attempt > 0 ? (
@@ -952,42 +1128,14 @@ export function Workspace() {
                 ) : null
               }
             >
-              {stream.attempt > 0 || stream.active ? (
-                <div className="rounded-lg border border-edge/70 bg-canvas/50 p-2.5">
-                  <div className="flex items-center gap-2">
-                    {stream.providerKind ? (
-                      <ProviderGlyph kind={stream.providerKind} size="sm" />
-                    ) : null}
-                    <div className="min-w-0">
-                      <div className="truncate text-[11px] font-medium text-ink">
-                        {stream.label ?? activeLabel}
-                      </div>
-                      <div className="truncate text-[10px] text-faint">
-                        {stream.modelId ?? "default model"}
-                        {stream.providerKind ? ` · ${stream.providerKind}` : ""}
-                      </div>
-                    </div>
-                  </div>
-                </div>
+              {runSteps.length > 0 ? (
+                <RunTimeline steps={runSteps} />
               ) : (
                 <p className="text-[11px] leading-relaxed text-faint">
-                  Idle. The next request records its attempts, fallbacks, and provider errors here.
+                  Idle. The next request records its rule, context, attempts, fallbacks, and usage
+                  here.
                 </p>
               )}
-
-              {stream.fallbacks.length > 0 ? (
-                <ul className="mt-2 space-y-1.5">
-                  {stream.fallbacks.map((fallback, index) => (
-                    <li
-                      key={`${fallback.reason}-${index}`}
-                      className="rounded-lg border border-amber-400/25 bg-amber-400/[0.06] p-2 text-[10px] leading-relaxed text-amber-200"
-                    >
-                      <div className="font-semibold">{fallback.reason.replaceAll("_", " ")}</div>
-                      <div className="text-amber-200/80">{fallback.message}</div>
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
 
               {detail && detail.switches.length > 0 ? (
                 <div className="mt-3">

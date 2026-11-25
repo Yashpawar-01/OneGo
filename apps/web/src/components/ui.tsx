@@ -385,6 +385,7 @@ export function Stat({
   icon,
   accent = "brand",
   footer,
+  delta,
 }: {
   label: string;
   value: ReactNode;
@@ -392,6 +393,7 @@ export function Stat({
   icon?: ReactNode;
   accent?: StatAccent;
   footer?: ReactNode;
+  delta?: ReactNode;
 }) {
   const palette = STAT_ACCENTS[accent];
   return (
@@ -417,8 +419,11 @@ export function Stat({
           </span>
         ) : null}
       </div>
-      <div className="relative mt-3 truncate font-display text-[28px] leading-none font-semibold tracking-tight text-ink">
-        {value}
+      <div className="relative mt-3 flex items-end gap-2">
+        <div className="truncate font-display text-[28px] leading-none font-semibold tracking-tight text-ink">
+          {value}
+        </div>
+        {delta ? <div className="mb-0.5 shrink-0">{delta}</div> : null}
       </div>
       {hint ? <div className="relative mt-2 text-xs text-dim">{hint}</div> : null}
       {footer ? <div className="relative mt-3">{footer}</div> : null}

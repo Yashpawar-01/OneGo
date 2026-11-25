@@ -240,6 +240,40 @@ phase, together with test results and any deviations.
 | Integration test | ✅ Relative paths rejected; temp repo indexed (2 files/2 chunks; hidden, node_modules and binary skipped); search returns the right chunk; chat meta reports 1 repository hit |
 | UI smoke test | ✅ Created a project, linked and indexed `packages/core` (20 files → 69 chunks), searched `FallbackRunner` (7 scored hits), unlinked; no console errors |
 
+## Workbench and analytics fidelity pass — completed 2026-11-25
+
+Design pass driven by two agent-workbench references. Only real recorded data is
+rendered; nothing was added to imitate tool execution that OneGo does not have.
+
+- `GET /api/usage/summary` now also aggregates the adjacent preceding window
+  (same length) and returns it as `previous`. Current-window totals, `byDay`,
+  and provider/model breakdowns are unchanged.
+- Usage Analytics: period-over-period chips on all four stat cards (requests,
+  success rate in points, input tokens, estimated cost); chips stay hidden when
+  the previous window has no data. Added a success/failure status donut with the
+  request total in the center, and reliability bars per provider.
+- Workspace: account/model/project moved from the header into composer chip
+  selects, alongside a context chip (live assembly or the last persisted
+  snapshot). The active thread shows a running pulse while a stream is open. The
+  inspector's Attempts section became a run timeline of real SSE steps: applied
+  rule, local classification, assembled context, attempt with provider glyph,
+  fallbacks, and recorded usage.
+
+### Verification (run 2026-11-25)
+
+| Check | Result |
+| --- | --- |
+| `npm run typecheck` | ✅ Passed — shared, core, server, web |
+| `npm test` | ✅ 55 tests passed (45 core, 10 server); integration test asserts `previous.requests` |
+| `npm run build` | ✅ Server bundle 126.9 KB; web JS 455.6 KB (129 KB gzip), CSS 75.4 KB |
+| Analytics smoke | ✅ Real fixture through the API: 19 current / 9 previous requests → `+111%`, `+12pts`, `+183%`, `+193%`; donut arcs 17 / 2 with a 263.9 px circumference; reliability 91% / 100%; no horizontal overflow |
+| Workspace smoke | ✅ Composer chips (account/model/project), persisted snapshot chip, run-timeline heading and idle copy present; zero console errors and warnings |
+| Screenshot | ⚠️ Not captured — the in-app browser surface was hidden; verification used DOM geometry and rendered text instead |
+
+Fixture rows and the throwaway user were deleted after verification; the dev
+database was returned to zero accounts, conversations, messages, usage events,
+switches and projects.
+
 ## Decisions log
 
 - **2026-11-19** — Express over NestJS: fewer moving parts; module isolation is
@@ -265,6 +299,10 @@ phase, together with test results and any deviations.
   condition keys fail closed, and stale targets fall through to normal routing
   instead of erroring. Rules may only narrow the candidate set, so a rule can
   never fabricate a provider connection that does not exist.
+- **2026-11-25** — Period comparisons are computed server-side from UsageEvents
+  in the adjacent window (one query over twice the range, split at the window
+  boundary). Deltas are suppressed when the previous window recorded nothing, so
+  no baseline is invented for a fresh install.
 
 ## Known limitations
 

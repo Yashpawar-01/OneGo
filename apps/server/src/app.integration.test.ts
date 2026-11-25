@@ -210,6 +210,7 @@ describeWithDb("server API acceptance flow", () => {
       .set("Authorization", `Bearer ${token}`);
     expect(usage.status).toBe(200);
     expect(usage.body.totals.success).toBeGreaterThanOrEqual(1);
+    expect(usage.body.previous.requests).toBe(0);
 
     const overview = await request(app)
       .get("/api/overview")
