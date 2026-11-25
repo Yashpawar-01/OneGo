@@ -115,7 +115,7 @@ function MessageBubble({
   if (isUser) {
     return (
       <div className="flex items-start justify-end gap-2.5">
-        <div className="max-w-[86%] rounded-2xl rounded-br-md border border-brand/30 bg-[linear-gradient(135deg,rgba(124,140,255,0.16),rgba(76,201,240,0.06))] px-4 py-3 text-sm leading-relaxed break-words whitespace-pre-wrap text-ink">
+        <div className="max-w-[86%] rounded-2xl rounded-br-md border border-brand/30 bg-[linear-gradient(135deg,rgba(167,139,250,0.16),rgba(96,165,250,0.06))] px-4 py-3 text-sm leading-relaxed break-words whitespace-pre-wrap text-ink">
           {message.content}
         </div>
         <span className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-full border border-edge bg-panel-2 text-dim">
@@ -829,7 +829,7 @@ export function Workspace() {
           </div>
 
           <div className="scrollbar-thin relative min-h-0 flex-1 space-y-5 overflow-y-auto px-4 py-5">
-            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(60%_40%_at_50%_0%,rgba(124,140,255,0.045),transparent_70%)]" />
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(60%_40%_at_50%_0%,rgba(167,139,250,0.045),transparent_70%)]" />
             {detailLoading && messages.length === 0 ? (
               <div className="relative py-6">
                 <Spinner label="Loading messages…" />

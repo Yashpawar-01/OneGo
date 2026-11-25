@@ -62,7 +62,7 @@ type ButtonSize = "xs" | "sm" | "md";
 
 const BUTTON_VARIANTS: Record<ButtonVariant, string> = {
   primary:
-    "bg-[linear-gradient(135deg,#93a2ff_0%,#6f7ff2_58%,#5f6ee6_100%)] text-[#080b12] shadow-[0_14px_34px_-16px_rgba(124,140,255,0.9)] hover:brightness-[1.08] active:brightness-95",
+    "bg-[linear-gradient(135deg,#ddd1ff_0%,#a78bfa_58%,#8b5cf6_100%)] text-[#140a22] shadow-[0_14px_34px_-16px_rgba(167,139,250,0.9)] hover:brightness-[1.08] active:brightness-95",
   secondary:
     "border border-edge bg-white/[0.035] text-ink hover:border-edge-strong hover:bg-white/[0.07]",
   ghost: "text-dim hover:bg-white/[0.055] hover:text-ink",
@@ -135,8 +135,8 @@ const BADGE_TONES: Record<BadgeTone, string> = {
   good: "border-emerald-400/25 bg-emerald-400/10 text-emerald-300",
   warn: "border-amber-400/25 bg-amber-400/10 text-amber-300",
   bad: "border-rose-400/25 bg-rose-400/10 text-rose-300",
-  info: "border-brand/30 bg-brand/10 text-[#b9c3ff]",
-  violet: "border-[#b18cff]/25 bg-[#b18cff]/10 text-[#d8c6ff]",
+  info: "border-brand/30 bg-brand/10 text-[#ddd1ff]",
+  violet: "border-[#e879f9]/25 bg-[#e879f9]/10 text-[#f5d0fe]",
 };
 
 const DOT_TONES: Record<BadgeTone, string> = {
@@ -145,7 +145,7 @@ const DOT_TONES: Record<BadgeTone, string> = {
   warn: "bg-amber-400",
   bad: "bg-rose-400",
   info: "bg-brand",
-  violet: "bg-[#b18cff]",
+  violet: "bg-[#e879f9]",
 };
 
 export function Badge({
@@ -305,7 +305,7 @@ export function EmptyState({
 }) {
   return (
     <div className="relative flex flex-col items-center justify-center gap-2 overflow-hidden rounded-2xl border border-dashed border-edge-strong/70 px-6 py-12 text-center">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(60%_60%_at_50%_0%,rgba(124,140,255,0.08),transparent_70%)]" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(60%_60%_at_50%_0%,rgba(167,139,250,0.08),transparent_70%)]" />
       {icon ? (
         <div className="relative mb-1 grid size-11 place-items-center rounded-xl border border-edge bg-panel-2 text-brand">
           {icon}
@@ -353,12 +353,12 @@ type StatAccent = "brand" | "violet" | "cyan" | "emerald" | "amber" | "rose";
 
 const STAT_ACCENTS: Record<StatAccent, { tile: string; glow: string }> = {
   brand: {
-    tile: "border-brand/25 bg-brand/10 text-[#b9c3ff]",
+    tile: "border-brand/25 bg-brand/10 text-[#ddd1ff]",
     glow: "from-brand/[0.14]",
   },
   violet: {
-    tile: "border-[#b18cff]/25 bg-[#b18cff]/10 text-[#d8c6ff]",
-    glow: "from-[#b18cff]/[0.14]",
+    tile: "border-[#e879f9]/25 bg-[#e879f9]/10 text-[#f5d0fe]",
+    glow: "from-[#e879f9]/[0.14]",
   },
   cyan: {
     tile: "border-cyan-400/25 bg-cyan-400/10 text-cyan-300",
@@ -582,7 +582,7 @@ export function Progress({
 export function Sparkline({
   values,
   className,
-  stroke = "#7c8cff",
+  stroke = "#a78bfa",
   height = 40,
 }: {
   values: number[];
@@ -657,7 +657,7 @@ type ProviderKind = "openai" | "anthropic" | "github-copilot" | "qoder" | string
 const PROVIDER_MARKS: Record<string, { icon: LucideIcon; tile: string; name: string }> = {
   openai: {
     icon: Sparkles,
-    tile: "from-[#7c8cff]/25 to-[#4cc9f0]/15 text-[#b9c3ff] border-[#7c8cff]/25",
+    tile: "from-[#a78bfa]/25 to-[#60a5fa]/15 text-[#ddd1ff] border-[#a78bfa]/25",
     name: "OpenAI",
   },
   anthropic: {
@@ -672,7 +672,7 @@ const PROVIDER_MARKS: Record<string, { icon: LucideIcon; tile: string; name: str
   },
   qoder: {
     icon: SquareTerminal,
-    tile: "from-[#b18cff]/25 to-[#ec4899]/10 text-[#dcc6ff] border-[#b18cff]/25",
+    tile: "from-[#e879f9]/25 to-[#ec4899]/10 text-[#f5d0fe] border-[#e879f9]/25",
     name: "Qoder",
   },
 };
@@ -731,7 +731,7 @@ export function Avatar({
   return (
     <span
       className={cn(
-        "grid shrink-0 place-items-center rounded-full border border-white/10 bg-[linear-gradient(135deg,#7c8cff_0%,#b18cff_55%,#4cc9f0_100%)] font-semibold text-[#080b12]",
+        "grid shrink-0 place-items-center rounded-full border border-white/10 bg-[linear-gradient(135deg,#a78bfa_0%,#e879f9_55%,#60a5fa_100%)] font-semibold text-[#140a22]",
         size === "sm" ? "size-7 text-[10px]" : "size-9 text-xs",
       )}
     >

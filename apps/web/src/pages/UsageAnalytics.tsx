@@ -215,27 +215,27 @@ export function UsageAnalytics() {
                     Complete responses only · {days === 1 ? "last 24 hours" : `last ${days} days`}
                   </p>
                 </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <Legend swatch="bg-[linear-gradient(180deg,#93a2ff,#6f7ff2)]" label="success" />
-                {summary.totals.errors > 0 ? (
-                  <Legend swatch="bg-rose-400/80" label="failed" />
-                ) : null}
-                {sourceBadges.map(([source, count]) => (
-                  <Badge key={source} tone="neutral">
-                    {source}: {formatNumber(count)}
-                  </Badge>
-                ))}
+                <div className="flex flex-wrap items-center gap-2">
+                  <Legend swatch="bg-[linear-gradient(180deg,#c4b5fd,#8b5cf6)]" label="success" />
+                  {summary.totals.errors > 0 ? (
+                    <Legend swatch="bg-rose-400/80" label="failed" />
+                  ) : null}
+                  {sourceBadges.map(([source, count]) => (
+                    <Badge key={source} tone="neutral">
+                      {source}: {formatNumber(count)}
+                    </Badge>
+                  ))}
+                </div>
               </div>
-            </div>
-            {summary.byDay.length === 0 ? (
-              <EmptyState
-                icon={<Activity className="size-5" />}
-                title="No usage recorded in this window"
-                description="Send a message in the workspace. Usage rows appear only after a provider responds."
-              />
-            ) : (
-              <DayChart days={summary.byDay} maxRequests={maxDayRequests} />
-            )}
+              {summary.byDay.length === 0 ? (
+                <EmptyState
+                  icon={<Activity className="size-5" />}
+                  title="No usage recorded in this window"
+                  description="Send a message in the workspace. Usage rows appear only after a provider responds."
+                />
+              ) : (
+                <DayChart days={summary.byDay} maxRequests={maxDayRequests} />
+              )}
             </Card>
 
             <div className="grid gap-4">
@@ -297,7 +297,7 @@ export function UsageAnalytics() {
                         <div className="mt-1.5 flex items-center gap-2">
                           <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/[0.05]">
                             <div
-                              className="h-full rounded-full bg-[linear-gradient(90deg,#93a2ff,#6f7ff2)]"
+                              className="h-full rounded-full bg-[linear-gradient(90deg,#c4b5fd,#8b5cf6)]"
                               style={{ width: `${share(row.requests, maxProviderRequests)}%` }}
                             />
                           </div>
@@ -337,7 +337,7 @@ export function UsageAnalytics() {
                       <div className="mt-1.5 flex items-center gap-2">
                         <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/[0.05]">
                           <div
-                            className="h-full rounded-full bg-[linear-gradient(90deg,#b18cff,#7c8cff)]"
+                            className="h-full rounded-full bg-[linear-gradient(90deg,#e879f9,#a78bfa)]"
                             style={{ width: `${share(row.requests, maxModelRequests)}%` }}
                           />
                         </div>
@@ -616,7 +616,7 @@ function DayChart({
                 ) : null}
                 <div
                   className={cn(
-                    "w-full bg-[linear-gradient(180deg,#93a2ff,#6f7ff2)] transition-[filter] group-hover:brightness-110",
+                    "w-full bg-[linear-gradient(180deg,#c4b5fd,#8b5cf6)] transition-[filter] group-hover:brightness-110",
                     day.errors > 0 ? "rounded-b-[3px]" : "rounded-t-[3px]",
                   )}
                   style={{ height: `${successShare}%` }}

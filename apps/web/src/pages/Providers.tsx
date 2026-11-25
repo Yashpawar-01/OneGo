@@ -602,7 +602,7 @@ export function Providers() {
         {providers.map((provider) => (
           <Card key={provider.id} padding="none" className="overflow-hidden">
             <div className="relative border-b border-edge/70 px-5 py-4">
-              <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(60%_100%_at_0%_0%,rgba(124,140,255,0.07),transparent_70%)]" />
+              <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(60%_100%_at_0%_0%,rgba(167,139,250,0.07),transparent_70%)]" />
               <div className="relative flex flex-wrap items-start justify-between gap-3">
                 <div className="flex min-w-0 items-start gap-3">
                   <ProviderGlyph kind={provider.kind} size="lg" />

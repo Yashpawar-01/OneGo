@@ -47,7 +47,7 @@ const MODE_COPY: Array<{
     mode: "manual",
     icon: MousePointerClick,
     blurb: "You pick provider and model per conversation.",
-    accent: "border-brand/25 bg-brand/10 text-[#b9c3ff]",
+    accent: "border-brand/25 bg-brand/10 text-[#ddd1ff]",
   },
   {
     mode: "automatic",
@@ -59,7 +59,7 @@ const MODE_COPY: Array<{
     mode: "intelligent",
     icon: BrainCircuit,
     blurb: "Classifies the task locally, then ranks synced models.",
-    accent: "border-[#b18cff]/25 bg-[#b18cff]/10 text-[#d8c6ff]",
+    accent: "border-[#e879f9]/25 bg-[#e879f9]/10 text-[#f5d0fe]",
   },
 ];
 
@@ -558,7 +558,7 @@ export function ModelRouter() {
                         className={cn(
                           "grid size-6 shrink-0 place-items-center rounded-md border font-mono text-[10px] font-semibold",
                           index === 0
-                            ? "border-brand/35 bg-brand/15 text-[#b9c3ff]"
+                            ? "border-brand/35 bg-brand/15 text-[#ddd1ff]"
                             : "border-edge bg-panel text-dim",
                         )}
                       >

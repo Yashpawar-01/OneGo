@@ -68,7 +68,7 @@ const TITLES: Record<string, string> = {
 function Brand() {
   return (
     <div className="flex items-center gap-3">
-      <span className="relative grid size-9 place-items-center rounded-xl border border-white/10 bg-[linear-gradient(135deg,#93a2ff,#6f7ff2_55%,#4cc9f0)] font-display text-base font-bold text-[#080b12] shadow-glow">
+      <span className="relative grid size-9 place-items-center rounded-xl border border-white/10 bg-[linear-gradient(135deg,#c4b5fd,#8b5cf6_55%,#60a5fa)] font-display text-base font-bold text-[#140a22] shadow-glow">
         O
       </span>
       <div>
@@ -113,14 +113,14 @@ function NavList({ onNavigate }: { onNavigate?: () => void }) {
                       className={cn(
                         "absolute top-1/2 left-0 h-4 w-[2px] -translate-y-1/2 rounded-full transition-opacity",
                         isActive
-                          ? "bg-gradient-to-b from-brand to-brand-3 opacity-100 shadow-[0_0_10px_rgba(124,140,255,0.9)]"
+                          ? "bg-gradient-to-b from-brand to-brand-3 opacity-100 shadow-[0_0_10px_rgba(167,139,250,0.9)]"
                           : "opacity-0",
                       )}
                     />
                     <item.icon
                       className={cn(
                         "size-4 shrink-0 transition-colors",
-                        isActive ? "text-[#aeb9ff]" : "text-faint group-hover:text-dim",
+                        isActive ? "text-[#c4b5fd]" : "text-faint group-hover:text-dim",
                       )}
                     />
                     <span className="truncate">{item.label}</span>
@@ -236,7 +236,7 @@ export function AppShell() {
         <div className="pointer-events-none absolute inset-0 bg-aurora" />
         <div className="pointer-events-none absolute inset-0 bg-grid opacity-60" />
         <div className="relative flex flex-col items-center gap-5">
-          <span className="grid size-12 animate-pulse-soft place-items-center rounded-2xl border border-white/10 bg-[linear-gradient(135deg,#93a2ff,#6f7ff2_55%,#4cc9f0)] font-display text-xl font-bold text-[#080b12] shadow-glow">
+          <span className="grid size-12 animate-pulse-soft place-items-center rounded-2xl border border-white/10 bg-[linear-gradient(135deg,#c4b5fd,#8b5cf6_55%,#60a5fa)] font-display text-xl font-bold text-[#140a22] shadow-glow">
             O
           </span>
           <div className="flex items-center gap-2.5 text-sm text-dim">
@@ -255,7 +255,9 @@ export function AppShell() {
 
   return (
     <div className="relative flex h-screen overflow-hidden bg-canvas text-ink">
-      <div className="pointer-events-none absolute inset-0 bg-aurora opacity-50" />
+      <div className="pointer-events-none absolute inset-0 bg-aurora opacity-80" />
+      <div className="pointer-events-none absolute -top-32 left-1/3 size-[34rem] rounded-full bg-[#a855f7]/[0.12] blur-[130px]" />
+      <div className="pointer-events-none absolute right-[-6rem] bottom-[-8rem] size-[30rem] rounded-full bg-[#d946ef]/[0.1] blur-[140px]" />
       <div className="pointer-events-none absolute inset-x-0 top-0 h-64 bg-grid opacity-40" />
 
       <aside className="relative z-20 hidden w-[264px] shrink-0 flex-col border-r border-edge/80 bg-panel/55 backdrop-blur-xl md:flex">

@@ -67,11 +67,11 @@ export function AuthScreen() {
       <div className="pointer-events-none absolute inset-0 bg-aurora" />
       <div className="pointer-events-none absolute inset-0 bg-grid opacity-70" />
       <div className="pointer-events-none absolute -top-40 -left-24 size-[34rem] animate-float rounded-full bg-brand/15 blur-[120px]" />
-      <div className="pointer-events-none absolute -right-24 bottom-[-10rem] size-[30rem] animate-float-slow rounded-full bg-[#b18cff]/10 blur-[130px]" />
+      <div className="pointer-events-none absolute -right-24 bottom-[-10rem] size-[30rem] animate-float-slow rounded-full bg-[#e879f9]/10 blur-[130px]" />
 
       <div className="relative hidden flex-1 flex-col justify-between border-r border-edge/70 px-12 py-10 lg:flex xl:px-16">
         <div className="flex items-center gap-3">
-          <span className="grid size-9 place-items-center rounded-xl border border-white/10 bg-[linear-gradient(135deg,#93a2ff,#6f7ff2_55%,#4cc9f0)] font-display text-base font-bold text-[#080b12] shadow-glow">
+          <span className="grid size-9 place-items-center rounded-xl border border-white/10 bg-[linear-gradient(135deg,#c4b5fd,#8b5cf6_55%,#60a5fa)] font-display text-base font-bold text-[#140a22] shadow-glow">
             O
           </span>
           <div>
@@ -105,7 +105,7 @@ export function AuthScreen() {
                 key={feature.title}
                 className="glass flex items-start gap-3.5 rounded-xl border border-edge/80 px-4 py-3.5 transition-colors hover:border-edge-strong"
               >
-                <span className="grid size-8 shrink-0 place-items-center rounded-lg border border-brand/25 bg-brand/10 text-[#b9c3ff]">
+                <span className="grid size-8 shrink-0 place-items-center rounded-lg border border-brand/25 bg-brand/10 text-[#ddd1ff]">
                   <feature.icon className="size-4" />
                 </span>
                 <div>
@@ -133,7 +133,7 @@ export function AuthScreen() {
       <div className="relative flex w-full items-center justify-center px-5 py-10 lg:w-[34rem] lg:shrink-0 xl:w-[38rem]">
         <div className="w-full max-w-[24rem]">
           <div className="mb-7 flex items-center gap-3 lg:hidden">
-            <span className="grid size-9 place-items-center rounded-xl border border-white/10 bg-[linear-gradient(135deg,#93a2ff,#6f7ff2_55%,#4cc9f0)] font-display text-base font-bold text-[#080b12]">
+            <span className="grid size-9 place-items-center rounded-xl border border-white/10 bg-[linear-gradient(135deg,#c4b5fd,#8b5cf6_55%,#60a5fa)] font-display text-base font-bold text-[#140a22]">
               O
             </span>
             <div>

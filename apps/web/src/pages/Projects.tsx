@@ -427,7 +427,7 @@ export function Projects() {
       {error ? <ErrorBanner message={error} onRetry={refresh} /> : null}
 
       {creating ? (
-        <Card className="border-brand/25 bg-[linear-gradient(180deg,rgba(124,140,255,0.06),transparent_65%)]">
+        <Card className="border-brand/25 bg-[linear-gradient(180deg,rgba(167,139,250,0.06),transparent_65%)]">
           <div className="mb-4 flex items-center justify-between gap-2">
             <div>
               <h2 className="font-display text-sm font-semibold text-ink">New project</h2>
@@ -791,7 +791,7 @@ export function Projects() {
               <div className="grid gap-4 xl:grid-cols-2">
                 <Card>
                   <div className="mb-1 flex items-center gap-2">
-                    <span className="grid size-7 place-items-center rounded-md border border-[#b18cff]/25 bg-[#b18cff]/10 text-[#d8c6ff]">
+                    <span className="grid size-7 place-items-center rounded-md border border-[#e879f9]/25 bg-[#e879f9]/10 text-[#f5d0fe]">
                       <Database className="size-3.5" />
                     </span>
                     <h2 className="font-display text-sm font-semibold text-ink">Project memory</h2>
@@ -834,7 +834,7 @@ export function Projects() {
                         type="checkbox"
                         checked={memoryPinned}
                         onChange={(event) => setMemoryPinned(event.target.checked)}
-                        className="accent-[#7c8cff]"
+                        className="accent-[#a78bfa]"
                       />
                       Pin this memory into every request
                     </label>

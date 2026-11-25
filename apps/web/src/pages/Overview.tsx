@@ -183,8 +183,8 @@ export function Overview() {
   return (
     <div className="page-enter space-y-5">
       <Card padding="none" glow className="overflow-hidden">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_130%_at_0%_0%,rgba(124,140,255,0.16),transparent_58%)]" />
-        <div className="pointer-events-none absolute -top-24 right-[18%] size-72 rounded-full bg-[#b18cff]/10 blur-[90px]" />
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_130%_at_0%_0%,rgba(167,139,250,0.16),transparent_58%)]" />
+        <div className="pointer-events-none absolute -top-24 right-[18%] size-72 rounded-full bg-[#e879f9]/10 blur-[90px]" />
         <div className="relative grid gap-8 p-6 md:grid-cols-[1.35fr_1fr] md:p-8">
           <div className="flex flex-col justify-between gap-6">
             <div>
@@ -303,7 +303,7 @@ export function Overview() {
               ? "Cost not reported by providers"
               : `≈ $${data.usage7d.estimatedCostUsd.toFixed(4)} from list prices`
           }
-          footer={<Sparkline values={dailyRequests} height={30} stroke="#4cc9f0" />}
+          footer={<Sparkline values={dailyRequests} height={30} stroke="#60a5fa" />}
         />
         <Stat
           label="Tokens · 7 days"

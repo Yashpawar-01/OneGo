@@ -274,6 +274,37 @@ Fixture rows and the throwaway user were deleted after verification; the dev
 database was returned to zero accounts, conversations, messages, usage events,
 switches and projects.
 
+## Violet cockpit theme — completed 2026-11-25
+
+Palette retune only: no layout, data, or behaviour changed.
+
+- `apps/web/src/index.css` tokens moved to a violet/fuchsia ramp
+  (`canvas #0a0711`, `panel #110b1b`, `panel-2 #171024`, `edge #271c3a`,
+  `edge-strong #3b2b55`, `ink #f3effc`, `dim #a192ba`, `faint #6d6088`,
+  `brand #a78bfa`, `brand-2 #e879f9`, `brand-3 #60a5fa`). Aurora, grid, glass,
+  text gradients, shimmer and scrollbar colours were retuned to match.
+- App shell gains two fixed ambient glows (violet top-left of centre, fuchsia
+  bottom-right) under the aurora layer, behind all content.
+- Hardcoded accents were swept across twelve web files: violet primaries,
+  lifted gradient stops, dark `#140a22` text on primary buttons, and violet
+  nav-active icon/rail. Auth, shell, Overview, Workspace, Providers, Projects,
+  Router, Usage, Memory and Settings all inherit the new tokens.
+
+### Verification (run 2026-11-25)
+
+| Check | Result |
+| --- | --- |
+| `npm run typecheck` | ✅ Passed — shared, core, server, web |
+| `npm test` | ✅ 55 tests passed (45 core, 10 server) |
+| `npm run build` | ✅ Server bundle 126.9 KB; web JS 455.9 KB (129.1 KB gzip), CSS 75.9 KB |
+| Auth screen | ✅ Body `rgb(10, 7, 17)`, brand `#a78bfa`, primary gradient `#ddd1ff → #a78bfa → #8b5cf6` with `#140a22` text |
+| Shell + pages | ✅ Authenticated shell: body canvas, `#f3effc` headings, hero gradient `#f3effc → #e9d5ff → #93c5fd`, violet nav icon `#c4b5fd`; Providers badges `#ddd1ff`; no horizontal overflow at 526 px |
+| Usage fixtures | ✅ 41 seeded events: donut arcs 228.9 / 31.0 of 263.9 px, emerald/rose delta chips, 88% reliability bar; zero console errors or warnings |
+| Screenshot | ⚠️ Not captured — the in-app browser surface was hidden; verification used DOM geometry and computed styles |
+
+All smoke fixtures were removed afterwards: the database holds zero users,
+accounts, conversations, messages, usage events and projects.
+
 ## Decisions log
 
 - **2026-11-19** — Express over NestJS: fewer moving parts; module isolation is
@@ -303,6 +334,10 @@ switches and projects.
   in the adjacent window (one query over twice the range, split at the window
   boundary). Deltas are suppressed when the previous window recorded nothing, so
   no baseline is invented for a fresh install.
+- **2026-11-25** — Visual theme lives in CSS custom properties
+  (`--color-*`) plus a small set of gradient utilities, so the violet retune was
+  a token change with a sweep of stray literals rather than a component rewrite.
+  Status colours (emerald/rose/amber) stay semantic and independent of brand.
 
 ## Known limitations
 

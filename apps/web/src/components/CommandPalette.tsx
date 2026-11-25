@@ -131,7 +131,7 @@ export function CommandPalette({
                       className={cn(
                         "grid size-7 shrink-0 place-items-center rounded-md border",
                         index === active
-                          ? "border-brand/35 bg-brand/15 text-[#b9c3ff]"
+                          ? "border-brand/35 bg-brand/15 text-[#ddd1ff]"
                           : "border-edge bg-panel text-dim",
                       )}
                     >

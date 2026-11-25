@@ -195,7 +195,7 @@ export function Conversations() {
           icon={<MessagesSquare className="size-4" />}
           label="Threads in view"
           value={conversations.length}
-          accent="border-brand/25 bg-brand/10 text-[#b9c3ff]"
+          accent="border-brand/25 bg-brand/10 text-[#ddd1ff]"
         />
         <ThreadStat
           icon={<Waypoints className="size-4" />}
@@ -207,7 +207,7 @@ export function Conversations() {
           icon={<FolderKanban className="size-4" />}
           label="Projects represented"
           value={totals.projectsRepresented}
-          accent="border-[#b18cff]/25 bg-[#b18cff]/10 text-[#d8c6ff]"
+          accent="border-[#e879f9]/25 bg-[#e879f9]/10 text-[#f5d0fe]"
         />
       </section>
 
